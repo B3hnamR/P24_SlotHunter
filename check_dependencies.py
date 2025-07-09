@@ -32,13 +32,30 @@ for package in required_packages:
             installed_packages.append(f"✅ pyyaml: {yaml.__version__}")
         elif package == 'dotenv':
             import dotenv
-            installed_packages.append(f"✅ python-dotenv: {dotenv.__version__}")
+            try:
+                version = dotenv.__version__
+            except AttributeError:
+                try:
+                    # تلاش با pkg_resources
+                    import pkg_resources
+                    version = pkg_resources.get_distribution('python-dotenv').version
+                except:
+                    try:
+                        # تلاش با importlib.metadata
+                        import importlib.metadata
+                        version = importlib.metadata.version('python-dotenv')
+                    except:
+                        version = "نصب شده"
+            installed_packages.append(f"✅ python-dotenv: {version}")
         else:
             module = __import__(package)
             version = getattr(module, '__version__', 'نامشخص')
             installed_packages.append(f"✅ {package}: {version}")
     except ImportError:
         missing_packages.append(f"❌ {package}")
+    except Exception as e:
+        # در صورت هر خطای دیگر
+        installed_packages.append(f"⚠️ {package}: نصب شده (خطا در تشخیص نسخه)")
 
 print("📦 وضعیت کتابخانه‌ها:")
 for pkg in installed_packages:
