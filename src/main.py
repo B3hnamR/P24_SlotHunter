@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.utils.config import Config
 from src.utils.logger import setup_logger
 from src.api.paziresh_client import PazireshAPI
-from src.telegram.bot import SlotHunterBot
+from src.telegram_bot.bot import SlotHunterBot
 from src.database.database import init_database, db_session
 from src.database.models import Doctor as DBDoctor
 
