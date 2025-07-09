@@ -10,9 +10,10 @@ from src.telegram_bot.handlers import TelegramHandlers
 from src.telegram_bot.admin_handlers import TelegramAdminHandlers, ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL
 from src.telegram_bot.messages import MessageFormatter
 from src.database.database import db_session
-from src.database.models import User, Subscription
-from src.api.models import Doctor, Appointment
+from src.database.models import User, Subscription, Doctor, AppointmentLog
+from src.api.models import Appointment
 from src.utils.logger import get_logger
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = get_logger("TelegramBot")
 
