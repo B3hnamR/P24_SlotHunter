@@ -1,0 +1,5 @@
+#!/bin/bash
+# P24_SlotHunter Quick Admin Access
+
+cd /root/P24_SlotHunter
+./server_manager.sh
