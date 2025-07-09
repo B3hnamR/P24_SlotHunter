@@ -1,5 +1,5 @@
 from .bot import SlotHunterBot
-from .handlers import setup_handlers
+from .handlers import TelegramHandlers
 from .messages import MessageFormatter
 
-__all__ = ['SlotHunterBot', 'setup_handlers', 'MessageFormatter']
+__all__ = ['SlotHunterBot', 'TelegramHandlers', 'MessageFormatter']
