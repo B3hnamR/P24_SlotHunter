@@ -5,6 +5,7 @@ import os
 import yaml
 from typing import Dict, List, Any
 from pathlib import Path
+from dotenv import load_dotenv
 
 from src.api.models import Doctor
 
@@ -13,6 +14,9 @@ class Config:
     """کلاس مدیریت تنظیمات"""
     
     def __init__(self, config_path: str = "config/config.yaml"):
+        # بارگذاری فایل .env
+        load_dotenv()
+        
         self.config_path = Path(config_path)
         self._config = self._load_config()
     
@@ -40,24 +44,34 @@ class Config:
             return [self._replace_env_vars(item) for item in obj]
         elif isinstance(obj, str) and obj.startswith("${") and obj.endswith("}"):
             env_var = obj[2:-1]
-            return os.getenv(env_var, obj)
+            value = os.getenv(env_var, obj)
+            # تبدیل رشته‌های عددی
+            if env_var == 'ADMIN_CHAT_ID' and value.isdigit():
+                return int(value)
+            return value
         return obj
     
     def _get_default_config(self) -> Dict[str, Any]:
         """تنظیمات پیش‌فرض"""
+        admin_chat_id = os.getenv('ADMIN_CHAT_ID', '0')
+        if admin_chat_id.isdigit():
+            admin_chat_id = int(admin_chat_id)
+        else:
+            admin_chat_id = 0
+            
         return {
             'telegram': {
                 'bot_token': os.getenv('TELEGRAM_BOT_TOKEN', ''),
-                'admin_chat_id': int(os.getenv('ADMIN_CHAT_ID', '0'))
+                'admin_chat_id': admin_chat_id
             },
             'monitoring': {
-                'check_interval': 30,
+                'check_interval': int(os.getenv('CHECK_INTERVAL', '30')),
                 'max_retries': 3,
                 'timeout': 10,
                 'days_ahead': 7
             },
             'logging': {
-                'level': 'INFO',
+                'level': os.getenv('LOG_LEVEL', 'INFO'),
                 'file': 'logs/slothunter.log',
                 'max_size': '10MB',
                 'backup_count': 5
@@ -68,17 +82,32 @@ class Config:
     @property
     def telegram_bot_token(self) -> str:
         """توکن ربات تلگرام"""
-        return self._config.get('telegram', {}).get('bot_token', '')
+        token = self._config.get('telegram', {}).get('bot_token', '')
+        # اگر هنوز placeholder است، مستقیماً از env بخوان
+        if token.startswith('${'):
+            token = os.getenv('TELEGRAM_BOT_TOKEN', '')
+        return token
     
     @property
     def admin_chat_id(self) -> int:
         """شناسه چت ادمین"""
-        return self._config.get('telegram', {}).get('admin_chat_id', 0)
+        chat_id = self._config.get('telegram', {}).get('admin_chat_id', 0)
+        # اگر هنوز placeholder است، مستقیماً از env بخوان
+        if isinstance(chat_id, str) and chat_id.startswith('${'):
+            chat_id = os.getenv('ADMIN_CHAT_ID', '0')
+            if chat_id.isdigit():
+                chat_id = int(chat_id)
+            else:
+                chat_id = 0
+        return chat_id
     
     @property
     def check_interval(self) -> int:
         """فاصله زمانی بررسی (ثانیه)"""
-        return self._config.get('monitoring', {}).get('check_interval', 30)
+        interval = self._config.get('monitoring', {}).get('check_interval', 30)
+        if isinstance(interval, str):
+            interval = int(os.getenv('CHECK_INTERVAL', '30'))
+        return interval
     
     @property
     def max_retries(self) -> int:
@@ -98,7 +127,10 @@ class Config:
     @property
     def log_level(self) -> str:
         """سطح لاگ"""
-        return self._config.get('logging', {}).get('level', 'INFO')
+        level = self._config.get('logging', {}).get('level', 'INFO')
+        if isinstance(level, str) and level.startswith('${'):
+            level = os.getenv('LOG_LEVEL', 'INFO')
+        return level
     
     @property
     def log_file(self) -> str:
@@ -130,5 +162,6 @@ class Config:
         return doctors
     
     def reload(self):
-        """بارگذاری مجدد ��نظیمات"""
+        """بارگذاری مجدد تنظیمات"""
+        load_dotenv()  # بارگذاری مجدد .env
         self._config = self._load_config()
