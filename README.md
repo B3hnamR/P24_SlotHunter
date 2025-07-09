@@ -15,7 +15,7 @@
 - 🛡️ **پایدار و قابل اعتماد** با مدیریت خطا
 - 🐳 **آماده Docker** برای deployment آسان
 
-## 🚀 نصب سریع
+## 🚀 نصب و راه‌اندازی
 
 ### 1. دانلود پروژه
 ```bash
@@ -23,20 +23,50 @@ git clone https://github.com/your-username/P24_SlotHunter.git
 cd P24_SlotHunter
 ```
 
-### 2. نصب dependencies
+### 2. راه‌اندازی کامل (یک دستور!)
 ```bash
-pip install -r requirements.txt
+python manager.py setup
 ```
 
-### 3. تنظیم متغیرهای محیطی
+### 3. اجرای پروژه
 ```bash
-cp .env.example .env
-# ویرایش فایل .env و تنظیم توکن ربات
+python manager.py run
 ```
 
-### 4. اجرا
+## 🎛️ مدیریت پروژه
+
+### دستورات اصلی:
 ```bash
-python src/main.py
+# راه‌اندازی کامل
+python manager.py setup
+
+# اجرای کامل (با تلگرام)
+python manager.py run
+
+# اجرای بدون تلگرام
+python manager.py run --no-telegram
+
+# تنظیم مجدد ربات تلگرام
+python manager.py config
+
+# نمایش وضعیت پروژه
+python manager.py status
+
+# تست کامل سیستم
+python manager.py test
+
+# پاک‌سازی فایل‌های اضافی
+python manager.py clean
+```
+
+### اجرای سریع:
+```bash
+# در Linux/Mac
+chmod +x p24
+./p24 run
+
+# راهنمای کامل
+python manager.py --help
 ```
 
 ## ⚙️ تنظیمات

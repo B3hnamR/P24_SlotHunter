@@ -1,0 +1,5 @@
+#!/bin/bash
+# P24_SlotHunter Quick Manager
+# استفاده: ./p24 [command]
+
+python3 manager.py "$@"
