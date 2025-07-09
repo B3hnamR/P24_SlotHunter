@@ -1,5 +1,17 @@
 #!/bin/bash
-# P24_SlotHunter Quick Admin Access
+# P24_SlotHunter Admin Panel Quick Access
+# Direct access to the comprehensive management interface
 
-cd /root/P24_SlotHunter
-./server_manager.sh
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Check if server manager exists
+if [ ! -f "$PROJECT_DIR/server_manager.sh" ]; then
+    echo "❌ Server manager not found: $PROJECT_DIR/server_manager.sh"
+    exit 1
+fi
+
+# Make sure it's executable
+chmod +x "$PROJECT_DIR/server_manager.sh"
+
+# Launch the comprehensive server management interface
+exec "$PROJECT_DIR/server_manager.sh"

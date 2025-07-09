@@ -1,5 +1,52 @@
 #!/bin/bash
-# P24_SlotHunter Quick Manager
-# استفاده: ./p24 [command]
+# P24_SlotHunter Quick Command Interface
+# Usage: ./p24 [command]
 
-python3 manager.py "$@"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# If no arguments provided, show help
+if [ $# -eq 0 ]; then
+    echo "P24_SlotHunter Quick Commands:"
+    echo ""
+    echo "Service Management:"
+    echo "  ./p24 start     - Start the service"
+    echo "  ./p24 stop      - Stop the service"
+    echo "  ./p24 restart   - Restart the service"
+    echo "  ./p24 status    - Check service status"
+    echo ""
+    echo "Monitoring:"
+    echo "  ./p24 logs      - View recent logs"
+    echo "  ./p24 stats     - Show system statistics"
+    echo ""
+    echo "Management:"
+    echo "  ./p24 setup     - Setup/configure system"
+    echo "  ./p24 test      - Test system components"
+    echo "  ./p24 admin     - Open admin panel"
+    echo ""
+    echo "Python Manager:"
+    echo "  ./p24 run       - Run via Python manager"
+    echo "  ./p24 config    - Configure via Python manager"
+    echo ""
+    exit 0
+fi
+
+# Handle special commands
+case $1 in
+    admin)
+        # Open admin panel
+        exec "$PROJECT_DIR/server_manager.sh"
+        ;;
+    run|config)
+        # Use Python manager for these commands
+        if [ -f "$PROJECT_DIR/manager.py" ]; then
+            python3 "$PROJECT_DIR/manager.py" "$@"
+        else
+            echo "❌ Python manager not found"
+            exit 1
+        fi
+        ;;
+    *)
+        # Pass all other commands to server manager
+        exec "$PROJECT_DIR/server_manager.sh" "$@"
+        ;;
+esac
