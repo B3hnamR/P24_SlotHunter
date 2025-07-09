@@ -143,7 +143,7 @@ class TelegramAdminHandlers:
 آیا می‌خواهید این دکتر را اضافه کنید؟"""
             
             keyboard = [
-                [InlineKeyboardButton("�� تأیید", callback_data="confirm_add_doctor")],
+                [InlineKeyboardButton("✅ تأیید", callback_data="confirm_add_doctor")],
                 [InlineKeyboardButton("❌ لغو", callback_data="cancel_add_doctor")]
             ]
             
@@ -297,7 +297,7 @@ class TelegramAdminHandlers:
                 
         except Exception as e:
             logger.error(f"خطا در تغییر وضعیت دکتر: {e}")
-            await query.edit_message_text("❌ خطا در ��غییر وضعیت دکتر.")
+            await query.edit_message_text("❌ خطا در تغییر وضعیت دکتر.")
     
     @staticmethod
     async def set_check_interval(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -388,6 +388,6 @@ class TelegramAdminHandlers:
             'terminal_id': 'sample-terminal-id',
             'specialty': 'تخصص نامشخص',
             'center_name': 'مرکز نامشخص',
-            'center_address': 'آدرس نام��خص',
+            'center_address': 'آدرس نامشخص',
             'center_phone': 'تلفن نامشخص'
         }
