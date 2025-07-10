@@ -27,28 +27,10 @@ class TelegramAdminHandlers:
     
     @staticmethod
     def is_admin(user_id: int) -> bool:
-        """بررسی دسترسی ادمین"""
+        """بررسی دسترسی ادمین - استفاده از سیستم نقش‌های جدید"""
         try:
-            config = Config()
-            admin_chat_id = config.admin_chat_id
-            logger.info(f"Checking admin: user_id={user_id}, admin_chat_id={admin_chat_id}")
-            
-            # بررسی ادمین اصلی
-            if user_id == admin_chat_id:
-                return True
-            
-            # بررسی ادمین‌های اضافی از دیتابیس
-            try:
-                with db_session() as session:
-                    user = session.query(User).filter(
-                        User.telegram_id == user_id,
-                        User.is_admin == True,
-                        User.is_active == True
-                    ).first()
-                    return user is not None
-            except Exception as e:
-                logger.error(f"خطا در بررسی ادمین از دیتابیس: {e}")
-                return False
+            from src.telegram_bot.user_roles import user_role_manager
+            return user_role_manager.is_admin_or_higher(user_id)
         except Exception as e:
             logger.error(f"خطا در بررسی دسترسی ادمین: {e}")
             return False

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription, AppointmentLog
+from src.telegram_bot.user_roles import user_role_manager, UserRole
 from src.telegram_bot.messages import MessageFormatter
 from src.utils.logger import get_logger
 
@@ -19,14 +20,39 @@ class MenuHandlers:
     """کلاس handler های منو-محور ربات تلگرام"""
     
     @staticmethod
-    def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
-        """دریافت کیبورد منوی اصلی"""
+    def get_main_menu_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
+        """دریافت کیبورد منوی اصلی بر اساس نقش کاربر"""
+        
+        # منوی پایه برای همه کاربران
         keyboard = [
             [KeyboardButton("👨‍⚕️ دکترها"), KeyboardButton("📝 اشتراک‌ها")],
             [KeyboardButton("🔔 اشتراک جدید"), KeyboardButton("🗑️ لغو اشتراک")],
-            [KeyboardButton("📊 وضعیت من"), KeyboardButton("ℹ️ راهنما")],
-            [KeyboardButton("⚙️ تنظیمات"), KeyboardButton("📞 پشتیبانی")]
+            [KeyboardButton("📊 وضعیت من"), KeyboardButton("ℹ️ راهنما")]
         ]
+        
+        # بررسی نقش کاربر و اضافه کردن منوهای مخصوص
+        if user_id:
+            user_role = user_role_manager.get_user_role(user_id)
+            
+            # منوی کاربران عادی و بالاتر
+            if user_role_manager.is_user_or_higher(user_id):
+                keyboard.append([KeyboardButton("⚙️ تنظیمات"), KeyboardButton("📞 پشتیبانی")])
+            
+            # منوی مدیران و بالاتر
+            if user_role_manager.is_moderator_or_higher(user_id):
+                keyboard.append([KeyboardButton("📈 آمار سیستم"), KeyboardButton("👥 مدیریت کاربران")])
+            
+            # منوی ادمین‌ها
+            if user_role_manager.is_admin_or_higher(user_id):
+                keyboard.append([KeyboardButton("👑 پنل ادمین"), KeyboardButton("🔧 مدیریت سیستم")])
+                
+            # منوی سوپر ادمین
+            if user_role == UserRole.SUPER_ADMIN:
+                keyboard.append([KeyboardButton("⭐ سوپر ادمین"), KeyboardButton("🛠️ تنظیمات پیشرفته")])
+        else:
+            # منوی پیش‌فرض برای کاربران ناشناس
+            keyboard.append([KeyboardButton("⚙️ تنظیمات"), KeyboardButton("📞 پشتیبانی")])
+        
         return ReplyKeyboardMarkup(
             keyboard, 
             resize_keyboard=True, 
@@ -122,6 +148,7 @@ class MenuHandlers:
             # ثبت/به‌روزرسانی کاربر
             await MenuHandlers._ensure_user_exists(user)
             
+            # منوهای پایه
             if message_text == "👨‍⚕️ دکترها":
                 await MenuHandlers.show_doctors_menu(update, context)
             elif message_text == "📝 اشتراک‌ها":
@@ -138,6 +165,27 @@ class MenuHandlers:
                 await MenuHandlers.show_settings_menu(update, context)
             elif message_text == "📞 پشتیبانی":
                 await MenuHandlers.show_support_menu(update, context)
+            
+            # منوهای مدیریتی
+            elif message_text == "📈 آمار سیستم":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_system_stats_menu(update, context)
+            elif message_text == "👥 مدیریت کاربران":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_user_management_menu(update, context)
+            elif message_text == "👑 پنل ادمین":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_admin_panel(update, context)
+            elif message_text == "🔧 مدیریت سیستم":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_system_management_menu(update, context)
+            elif message_text == "⭐ سوپر ادمین":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_super_admin_menu(update, context)
+            elif message_text == "🛠️ تنظیمات پیشرفته":
+                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                await AdminMenuHandlers.show_advanced_settings_menu(update, context)
+            
             else:
                 # پیام خوش‌آمدگویی با منو
                 await MenuHandlers.show_welcome_menu(update, context)
@@ -146,22 +194,27 @@ class MenuHandlers:
             logger.error(f"❌ خطا در مدیریت منوی اصلی: {e}")
             await update.message.reply_text(
                 MessageFormatter.error_message("خطا در پردازش درخواست"),
-                reply_markup=MenuHandlers.get_main_menu_keyboard()
+                reply_markup=MenuHandlers.get_main_menu_keyboard(user.id)
             )
     
     @staticmethod
     async def show_welcome_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """نمایش منوی خوش‌آمدگویی"""
         user = update.effective_user
+        user_role = user_role_manager.get_user_role(user.id)
+        role_display = user_role_manager.get_role_display_name(user_role)
+        
         welcome_text = f"""
 🎯 **سلام {user.first_name}!**
 
 به ربات نوبت‌یاب پذیرش۲۴ خوش آمدید!
 
+👤 **نقش شما:** {role_display}
+
 🔍 **امکانات:**
 • نظارت مداوم بر نوبت‌های خالی
 • اطلاع‌رسانی فوری از طریق تلگرام  
-• پشتیبانی از ��ندین دکتر همزمان
+• پشتیبانی از چندین دکتر همزمان
 • رابط کاربری ساده و کاربردی
 
 📱 **از منوی زیر استفاده کنید:**
@@ -170,7 +223,7 @@ class MenuHandlers:
         await update.message.reply_text(
             welcome_text,
             parse_mode='Markdown',
-            reply_markup=MenuHandlers.get_main_menu_keyboard()
+            reply_markup=MenuHandlers.get_main_menu_keyboard(user.id)
         )
     
     @staticmethod
