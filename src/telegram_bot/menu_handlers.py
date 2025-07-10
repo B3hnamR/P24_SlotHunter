@@ -168,22 +168,22 @@ class MenuHandlers:
             
             # منوهای مدیریتی
             elif message_text == "📈 آمار سیستم":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_system_stats_menu(update, context)
             elif message_text == "👥 مدیریت کاربران":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_user_management_menu(update, context)
             elif message_text == "👑 پنل ادمین":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_admin_panel(update, context)
             elif message_text == "🔧 مدیریت سیستم":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_system_management_menu(update, context)
             elif message_text == "⭐ سوپر ادمین":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_super_admin_menu(update, context)
             elif message_text == "🛠️ تنظیمات پیشرفته":
-                from src.telegram_bot.admin_menu_handlers import AdminMenuHandlers
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
                 await AdminMenuHandlers.show_advanced_settings_menu(update, context)
             
             else:

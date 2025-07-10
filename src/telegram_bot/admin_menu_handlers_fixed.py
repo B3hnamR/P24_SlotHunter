@@ -24,7 +24,7 @@ class AdminMenuHandlers:
         """نمایش منوی آمار سیستم (مدیر و بالاتر)"""
         user_id = update.effective_user.id
         
-        # بررسی ��سترسی
+        # بررسی دسترسی
         if not user_role_manager.is_moderator_or_higher(user_id):
             # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
@@ -259,7 +259,7 @@ class AdminMenuHandlers:
     
     @staticmethod
     async def show_super_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """نمایش منوی سوپر ادمی�� (فقط سوپر ادمین)"""
+        """نمایش منوی سوپر ادمین (فقط سوپر ادمین)"""
         user_id = update.effective_user.id
         
         # بررسی دسترسی

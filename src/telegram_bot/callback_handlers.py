@@ -70,6 +70,39 @@ class CallbackHandlers:
                 await CallbackHandlers._handle_show_doctors(query)
             elif data == "show_subscriptions":
                 await CallbackHandlers._handle_show_subscriptions(query, user_id)
+            # Admin callbacks
+            elif data.startswith("admin_"):
+                await CallbackHandlers._handle_admin_callbacks(query, data, user_id)
+            elif data.startswith("super_"):
+                await CallbackHandlers._handle_super_admin_callbacks(query, data, user_id)
+            elif data.startswith("advanced_"):
+                await CallbackHandlers._handle_advanced_settings_callbacks(query, data, user_id)
+            elif data.startswith("system_"):
+                await CallbackHandlers._handle_system_callbacks(query, data, user_id)
+            elif data.startswith("detailed_"):
+                await CallbackHandlers._handle_detailed_callbacks(query, data, user_id)
+            elif data.startswith("stats_"):
+                await CallbackHandlers._handle_stats_callbacks(query, data, user_id)
+            elif data.startswith("log_"):
+                await CallbackHandlers._handle_log_callbacks(query, data, user_id)
+            elif data.startswith("backup_"):
+                await CallbackHandlers._handle_backup_callbacks(query, data, user_id)
+            elif data.startswith("database_"):
+                await CallbackHandlers._handle_database_callbacks(query, data, user_id)
+            elif data.startswith("monitoring_"):
+                await CallbackHandlers._handle_monitoring_callbacks(query, data, user_id)
+            elif data.startswith("list_"):
+                await CallbackHandlers._handle_list_callbacks(query, data, user_id)
+            elif data.startswith("search_"):
+                await CallbackHandlers._handle_search_callbacks(query, data, user_id)
+            elif data.startswith("manage_"):
+                await CallbackHandlers._handle_manage_callbacks(query, data, user_id)
+            elif data.startswith("blocked_"):
+                await CallbackHandlers._handle_blocked_callbacks(query, data, user_id)
+            elif data.startswith("user_"):
+                await CallbackHandlers._handle_user_callbacks(query, data, user_id)
+            elif data.startswith("full_"):
+                await CallbackHandlers._handle_full_callbacks(query, data, user_id)
             else:
                 await query.edit_message_text(
                     "❌ دستور نامشخص. لطفاً دوباره تلاش کنید.",
@@ -1100,3 +1133,5 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         except Exception as e:
             logger.error(f"❌ خطا در نمایش اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
+    
+    #
