@@ -66,6 +66,10 @@ class CallbackHandlers:
                 await CallbackHandlers._handle_support_callbacks(query, data, user_id)
             elif data == "system_status":
                 await CallbackHandlers._handle_system_status(query)
+            elif data == "show_doctors":
+                await CallbackHandlers._handle_show_doctors(query)
+            elif data == "show_subscriptions":
+                await CallbackHandlers._handle_show_subscriptions(query, user_id)
             else:
                 await query.edit_message_text(
                     "❌ دستور نامشخص. لطفاً دوباره تلاش کنید.",

@@ -2,8 +2,8 @@
 ربات تلگرام اصلی
 """
 import asyncio
-from telegram import Bot
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, ContextTypes
 from typing import List
 
 from src.telegram_bot.handlers import TelegramHandlers
