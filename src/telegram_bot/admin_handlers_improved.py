@@ -175,7 +175,7 @@ class TelegramAdminHandlers:
             )
             return ADD_DOCTOR_LINK
         
-        # نمایش پیا�� در حال پردازش
+        # نمایش پیام در حال پردازش
         processing_msg = await update.message.reply_text("🔄 در حال دریافت اطلاعات دکتر...")
         
         # دریافت اطلاعات دکتر از API
@@ -202,15 +202,16 @@ class TelegramAdminHandlers:
             # نمایش اطلاعات برای تأیید
             confirm_text = f"""✅ اطلاعات دکتر دریافت شد:
 
-👨‍⚕️ نام: {doctor_info['name']}
-🏥 تخصص: {doctor_info['specialty']}
-🏢 مرکز: {doctor_info['center_name']}
-📍 آدرس: {doctor_info['center_address']}
-📞 تلفن: {doctor_info['center_phone']}
+👨‍⚕️ **نام:** {doctor_info['name']}
+🏥 **تخصص:** {doctor_info['specialty']}
+🏢 **مرکز:** {doctor_info['center_name']}
+📍 **آدرس:** {doctor_info['center_address']}
+📞 **تلفن:** {doctor_info['center_phone']}
 
-🔧 اطلاعات فنی:
+🔧 **اطلاعات فنی:**
 • Slug: {doctor_info['slug']}
 • Center ID: {doctor_info['center_id'][:20]}...
+• Service ID: {doctor_info['service_id'][:20]}...
 
 آیا می‌خواهید این دکتر را اضافه کنید؟"""
             
@@ -235,14 +236,14 @@ class TelegramAdminHandlers:
             logger.error(f"خطا در دریافت اطلاعات دکتر: {e}")
             await update.message.reply_text(
                 f"❌ خطا در دریافت اطلاعات دکتر.\n\n"
-                f"جزئ��ات خطا: {str(e)}\n\n"
+                f"جزئیات خطا: {str(e)}\n\n"
                 "لطفاً دوباره تلاش کنید."
             )
             return ADD_DOCTOR_LINK
     
     @staticmethod
     async def _fetch_doctor_info(slug: str, url: str) -> Optional[Dict]:
-        """دریافت اطلاعات واقعی دکتر از پذیرش۲۴"""
+        """دریافت اطلاعات و��قعی دکتر از پذیرش۲۴"""
         try:
             logger.info(f"Fetching doctor info from: {url}")
             
@@ -474,7 +475,7 @@ class TelegramAdminHandlers:
                 await query.edit_message_text(
                     f"✅ دکتر {doctor_info['name']} با موفقیت اضافه شد!\n\n"
                     f"🔔 از این پس نوبت‌های این دکتر نیز بررسی می‌شود.\n\n"
-                    f"📋 اطلاعات ثبت شده:\n"
+                    f"📋 اط��اعات ثبت شده:\n"
                     f"• نام: {doctor_info['name']}\n"
                     f"• تخصص: {doctor_info['specialty']}\n"
                     f"• مرکز: {doctor_info['center_name']}"
@@ -487,6 +488,8 @@ class TelegramAdminHandlers:
             await query.edit_message_text("❌ خطا در افزودن دکتر. لطفاً دوباره تلاش کنید.")
         
         return ConversationHandler.END
+    
+    # ... (rest of the methods remain the same as before)
     
     @staticmethod
     async def manage_doctors(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -532,7 +535,7 @@ class TelegramAdminHandlers:
                 
         except Exception as e:
             logger.error(f"خطا در مدیریت دکترها: {e}")
-            await query.edit_message_text("❌ خطا در بارگذ��ری لیست دکترها.")
+            await query.edit_message_text("❌ خطا در بارگذاری لیست دکترها.")
     
     @staticmethod
     async def toggle_doctor_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -563,7 +566,7 @@ class TelegramAdminHandlers:
                 
                 status_text = "فعال" if doctor.is_active else "غیرفعال"
                 await query.edit_message_text(
-                    f"✅ وضعیت دکتر {doctor.name} به {status_text} تغییر کرد.\n\n"
+                    f"✅ وض��یت دکتر {doctor.name} به {status_text} تغییر کرد.\n\n"
                     f"🔄 برای بازگشت به لیست: /admin"
                 )
                 
