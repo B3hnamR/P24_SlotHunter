@@ -198,6 +198,7 @@ class AdminMenuHandlers:
         """
         
         keyboard = [
+            [InlineKeyboardButton("➕ افزودن دکتر", callback_data="admin_add_doctor")],
             [InlineKeyboardButton("👨‍⚕️ مدیریت دکترها", callback_data="admin_manage_doctors")],
             [InlineKeyboardButton("👥 مدیریت کاربران", callback_data="admin_manage_users")],
             [InlineKeyboardButton("⚙️ تنظیمات سیستم", callback_data="admin_system_settings")],
