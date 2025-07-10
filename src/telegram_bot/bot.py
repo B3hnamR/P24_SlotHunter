@@ -7,6 +7,8 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Conv
 from typing import List
 
 from src.telegram_bot.handlers import TelegramHandlers
+from src.telegram_bot.menu_handlers import MenuHandlers
+from src.telegram_bot.callback_handlers import CallbackHandlers
 from src.telegram_bot.admin_handlers import TelegramAdminHandlers, ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL
 from src.telegram_bot.messages import MessageFormatter
 from src.database.database import db_session
@@ -75,13 +77,19 @@ class SlotHunterBot:
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
         
-        # Command handlers
-        self.application.add_handler(CommandHandler("start", TelegramHandlers.start_command))
+        # Command handlers (legacy support)
+        self.application.add_handler(CommandHandler("start", self._handle_start_command))
         self.application.add_handler(CommandHandler("help", TelegramHandlers.help_command))
         self.application.add_handler(CommandHandler("doctors", TelegramHandlers.doctors_command))
         self.application.add_handler(CommandHandler("subscribe", TelegramHandlers.subscribe_command))
         self.application.add_handler(CommandHandler("unsubscribe", TelegramHandlers.unsubscribe_command))
         self.application.add_handler(CommandHandler("status", TelegramHandlers.status_command))
+        
+        # Menu-based message handlers
+        self.application.add_handler(MessageHandler(
+            filters.TEXT & ~filters.COMMAND, 
+            MenuHandlers.handle_main_menu
+        ))
         
         # Admin commands
         self.application.add_handler(CommandHandler("admin", TelegramAdminHandlers.admin_panel))
@@ -90,13 +98,34 @@ class SlotHunterBot:
         self.application.add_handler(add_doctor_conv)
         self.application.add_handler(set_interval_conv)
         
-        # Callback query handlers
+        # Callback query handlers - Order matters!
+        # Admin callbacks first
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.toggle_doctor_status, pattern="^toggle_doctor_"))
         self.application.add_handler(CallbackQueryHandler(self._handle_admin_callbacks, pattern="^admin_"))
-        self.application.add_handler(CallbackQueryHandler(TelegramHandlers.button_callback))
+        
+        # Menu callbacks
+        self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
         
         logger.info("✅ Handler های ربات تنظیم شدند")
+    
+    async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت دستور /start با منوی جدید"""
+        try:
+            user = update.effective_user
+            
+            # ثبت/به‌روزرسانی کاربر در دیتابیس
+            await MenuHandlers._ensure_user_exists(user)
+            
+            # نمایش منوی خوش‌آمدگویی
+            await MenuHandlers.show_welcome_menu(update, context)
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در دستور start: {e}")
+            await update.message.reply_text(
+                MessageFormatter.error_message(),
+                reply_markup=MenuHandlers.get_main_menu_keyboard()
+            )
     
     async def _handle_admin_callbacks(self, update, context):
         """مدیریت callback های ادمین"""
