@@ -73,3 +73,8 @@ def admin_only(func):
         return await func(update, context, *args, **kwargs)
     
     return wrapper
+
+
+# Aliases برای سازگاری با __init__.py
+admin_required = admin_only
+user_required = require_access
