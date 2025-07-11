@@ -1152,20 +1152,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         
         admin_action = data.replace("admin_", "")
         
-        if admin_action == "add_doctor":
-            # شروع فرآیند افزودن دکتر - این باید ConversationHandler را فعال کند
-            await query.edit_message_text(
-                "🔗 **افزودن دکتر جدید**\n\n"
-                "لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید:\n\n"
-                "✅ فرمت‌های پشتیبانی شده:\n"
-                "• https://www.paziresh24.com/dr/دکتر-نام-0/\n"
-                "• https://www.paziresh24.com/dr/%D8%AF%DA%A9%D8%AA%D8%B1-...\n\n"
-                "برای لغو: /cancel",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("❌ لغو", callback_data="back_to_main")
-                ]])
-            )
-        elif admin_action == "manage_doctors":
+        # admin_add_doctor حالا توسط ConversationHandler در bot.py handle می‌شود
+        if admin_action == "manage_doctors":
             await CallbackHandlers._handle_admin_manage_doctors(query, user_id)
         elif admin_action == "manage_users":
             await CallbackHandlers._handle_admin_manage_users(query, user_id)

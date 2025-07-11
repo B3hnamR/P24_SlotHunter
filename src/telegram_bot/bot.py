@@ -93,17 +93,16 @@ class SlotHunterBot:
         
         # Admin commands - Removed old /admin command (now using role-based menu system)
         
-        # Conversation handlers
+        # Callback query handlers - Order matters!
+        # Conversation handlers MUST come first to catch their entry points
         self.application.add_handler(add_doctor_conv)
         self.application.add_handler(set_interval_conv)
         
-        # Callback query handlers - Order matters!
         # Legacy admin callbacks (keeping for backward compatibility with old admin_handlers)
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.toggle_doctor_status, pattern="^toggle_doctor_"))
-        self.application.add_handler(CallbackQueryHandler(self._handle_admin_callbacks, pattern="^admin_"))
         
-        # Menu callbacks (new role-based system)
+        # Menu callbacks (new role-based system) - This handles all other admin_ callbacks
         self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
         
         logger.info("✅ Handler های ربات تنظیم شدند")
