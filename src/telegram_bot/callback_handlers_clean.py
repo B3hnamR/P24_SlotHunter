@@ -223,7 +223,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
     
     @staticmethod
     async def _handle_subscribe(query, data, user_id):
-        """مدیریت اشتراک"""
+        """مدیریت اشترا��"""
         try:
             doctor_id = int(data.split("_")[1])
             
@@ -498,7 +498,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
     
     @staticmethod
     async def _handle_subscription_stats(query, user_id):
-        """آما�� اشتراک‌ها"""
+        """آمار اشتراک‌ها"""
         try:
             with db_session() as session:
                 user = session.query(User).filter(User.telegram_id == user_id).first()
@@ -528,7 +528,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 stats_text = f"""
 📊 **آمار اشتراک‌های من**
 
-���� **اشتراک‌ها:**
+📝 **اشتراک‌ها:**
 • اشتراک‌های فعال: {len(active_subs)}
 • کل اشتراک‌ها: {total_subs}
 
@@ -913,7 +913,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         elif admin_action == "dashboard":
             await CallbackHandlers._handle_admin_dashboard(query, user_id)
         else:
-            # برای سایر ��وارد که هنوز پیاده‌سازی نشده‌اند
+            # برای سایر موارد که هنوز پیاده‌سازی نشده‌اند
             await query.edit_message_text(
                 f"🔧 **{admin_action}**\n\nاین قسمت در حال توسعه است.",
                 reply_markup=InlineKeyboardMarkup([[
@@ -943,7 +943,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 
 📊 **آمار:**
 • کل دکترها: {len(doctors)}
-• ��عال: {len([d for d in doctors if d.is_active])}
+• فعال: {len([d for d in doctors if d.is_active])}
 • غیرفعال: {len([d for d in doctors if not d.is_active])}
 
 🔧 **عملیات:**
@@ -951,7 +951,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 keyboard = [
                     [InlineKeyboardButton("➕ افزودن دکتر", callback_data="admin_add_doctor")],
-                    [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]
+                    [InlineKeyboardButton("🔙 باز��شت", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 

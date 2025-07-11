@@ -19,29 +19,13 @@ logging:
   max_size: 10MB
   backup_count: 5
 
-# لیست دکترها
-doctors:
-  - name: "دکتر مجتبی موسوی"
-    slug: "دکتر-سیدمحمدمجتبی-موسوی-0"
-    center_id: "9c95587c-0c20-4e94-974d-0dc025313f2d"
-    service_id: "9c95587c-ac9c-4e3c-b89d-b491a86926dc"
-    user_center_id: "9c95587c-47a6-4a55-a9b7-73fb8405e855"
-    terminal_id: "clinic-686dde06144236.30522977"
-    specialty: "آزمایشگاه و تصویربرداری"
-    center_name: "مطب دکتر سیدمحمدمجتبی موسوی"
-    center_address: "خیابان آذربایجان-بیمارستان اقبال"
-    center_phone: "09939124880"
-    is_active: true
+# لیست دکترها - دکترها از طریق ربات اضافه می‌شوند
+doctors: []
 
-  # برای افزودن دکتر جدید، pattern زیر را کپی کنید:
-  # - name: "نام دکتر"
-  #   slug: "slug-doctor"
-  #   center_id: "center-id"
-  #   service_id: "service-id"
-  #   user_center_id: "user-center-id"
-  #   terminal_id: "terminal-id"
-  #   specialty: "تخصص"
-  #   center_name: "نام مرکز"
-  #   center_address: "آدرس"
-  #   center_phone: "تلفن"
-  #   is_active: true
+# نحوه افزودن دکتر جدید:
+# 1. از ربات تلگرام استفاده کنید
+# 2. دستور /admin را اجرا کنید (فقط برای ادمین‌ها)
+# 3. گزینه "➕ افزودن دکتر" ��ا انتخاب کنید
+# 4. لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید
+# 
+# مثال لینک: https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/
