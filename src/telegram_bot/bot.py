@@ -90,15 +90,8 @@ class SlotHunterBot:
         self.application.add_handler(CommandHandler("unsubscribe", TelegramHandlers.unsubscribe_command))
         self.application.add_handler(CommandHandler("status", TelegramHandlers.status_command))
         
-        # Specific admin callbacks - These must come before the general handler
-        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
-        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.toggle_doctor_status, pattern="^toggle_doctor_"))
-        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_admin_stats, pattern="^admin_stats$"))
-        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_user_management, pattern="^admin_manage_users$"))
-        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_access_settings, pattern="^admin_access_settings$"))
-        self.application.add_handler(CallbackQueryHandler(self._handle_admin_callbacks, pattern="^back_to_admin_panel$"))
-        
-        # Menu callbacks (new role-based system) - This handles all other callbacks
+        # یکپارچه‌سازی CallbackQueryHandler ها
+        # تمام callback ها توسط یک handler مدیریت می‌شوند
         self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
         
         # Menu-based message handlers - MUST be last to not interfere with conversations
@@ -129,119 +122,8 @@ class SlotHunterBot:
     
     async def _handle_admin_callbacks(self, update, context):
         """مدیریت callback های ادمین"""
-        query = update.callback_query
-        await query.answer()
-        
-        if query.data == "admin_stats":
-            await self._show_admin_stats(query)
-        elif query.data == "admin_manage_users":
-            await self._show_user_management(query)
-        elif query.data == "admin_access_settings":
-            await self._show_access_settings(query)
-        elif query.data == "back_to_admin_panel":
-            await TelegramAdminHandlers.admin_panel(update, context)
-    
-    async def _show_admin_stats(self, query):
-        """نمایش آمار سیستم"""
-        if not TelegramAdminHandlers.is_admin(query.from_user.id):
-            await query.edit_message_text("❌ شما دسترسی ادمین ندارید.")
-            return
-        
-        try:
-            with db_session() as session:
-                total_users = session.query(User).filter(User.is_active == True).count()
-                total_doctors = session.query(Doctor).count()
-                active_doctors = session.query(Doctor).filter(Doctor.is_active == True).count()
-                total_subscriptions = session.query(Subscription).filter(Subscription.is_active == True).count()
-                
-                from src.database.models import AppointmentLog
-                from datetime import datetime, timedelta
-                
-                today = datetime.now().date()
-                appointments_today = session.query(AppointmentLog).filter(
-                    AppointmentLog.created_at >= today
-                ).count()
-                
-                stats_text = f"""
-📊 **آمار سیستم P24_SlotHunter**
-
-👥 **کارب��ان فعال:** {total_users}
-👨‍⚕️ **کل دکترها:** {total_doctors}
-✅ **دکترهای فعال:** {active_doctors}
-📝 **اشتراک‌های فعال:** {total_subscriptions}
-🎯 **نوبت‌های پیدا شده امروز:** {appointments_today}
-
-⏰ **آخرین بررسی:** در حال اجرا
-🔄 **وضعیت سیستم:** فعال
-                """
-                
-                keyboard = [[
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
-                ]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode='Markdown')
-                
-        except Exception as e:
-            logger.error(f"خطا در نمایش آمار: {e}")
-            await query.edit_message_text("❌ خطا در دریافت آمار سیستم.")
-    
-    async def _show_user_management(self, query):
-        """مدیریت کاربران"""
-        if not TelegramAdminHandlers.is_admin(query.from_user.id):
-            await query.edit_message_text("❌ شما دسترسی ادمین ندارید.")
-            return
-        
-        try:
-            with db_session() as session:
-                users = session.query(User).filter(User.is_active == True).order_by(User.created_at.desc()).limit(10).all()
-                
-                user_list = "👥 **آخرین کاربران:**\n\n"
-                
-                for i, user in enumerate(users, 1):
-                    subscription_count = len([sub for sub in user.subscriptions if sub.is_active])
-                    admin_badge = " 🔧" if user.is_admin else ""
-                    
-                    user_list += f"{i}. {user.full_name}{admin_badge}\n"
-                    user_list += f"   📱 ID: `{user.telegram_id}`\n"
-                    user_list += f"   📝 اشتراک‌ها: {subscription_count}\n\n"
-                
-                keyboard = [[
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
-                ]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(user_list, reply_markup=reply_markup, parse_mode='Markdown')
-                
-        except Exception as e:
-            logger.error(f"خطا در مدیریت کاربران: {e}")
-            await query.edit_message_text("❌ خطا در بارگذاری لیست کاربران.")
-    
-    async def _show_access_settings(self, query):
-        """تنظیمات دست��سی"""
-        if not TelegramAdminHandlers.is_admin(query.from_user.id):
-            await query.edit_message_text("❌ شما دسترسی ادمین ندارید.")
-            return
-        
-        access_text = """
-🔒 **تنظیمات دسترسی**
-
-⚠️ **وضعیت فعلی:** ربات برای همه در دسترس است
-
-🔧 **برای محدود کردن دسترسی:**
-1. از منوی مدیریت سرور استفاده کنید
-2. گزینه "Access Control" را انتخاب کنید
-3. لیست کاربران مجاز را تنظیم کنید
-
-💡 **نکته:** تغییرات از طریق سرور اعمال می‌شود
-        """
-        
-        keyboard = [[
-            InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(access_text, reply_markup=reply_markup, parse_mode='Markdown')
+        # این متد دیگر استفاده نمی‌شود و منطق آن به callback_handlers منتقل شده است
+        pass
     
     async def start_polling(self):
         """شروع polling"""

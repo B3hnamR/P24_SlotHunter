@@ -174,6 +174,9 @@ class SlotHunter:
                 else:
                     self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
                 
+                # بارگذاری مجدد کانفیگ برای دریافت تغییرات احتمالی
+                self.config.reload()
+
                 # صبر تا دور بعدی
                 self.logger.info(f"⏰ صبر {self.config.check_interval} ثانیه تا دور بعدی...")
                 await asyncio.sleep(self.config.check_interval)
@@ -201,8 +204,7 @@ class SlotHunter:
                 for apt in appointments[:3]:
                     self.logger.info(f"  ⏰ {apt.time_str}")
                 
-                # فعلاً اطلاع‌رسانی تلگرام را غیرفعال می‌کنیم تا مشکل SQLAlchemy حل شود
-                # await self.notify_appointments(simple_doctor, appointments)
+                await self.notify_appointments(simple_doctor, appointments)
             else:
                 self.logger.debug(f"📅 هیچ نوبتی برای {simple_doctor.name} موجود نیست")
                 
@@ -210,10 +212,10 @@ class SlotHunter:
             self.logger.error(f"❌ خطا در بررسی {doctor_data['name']}: {e}")
     
     async def notify_appointments(self, doctor, appointments):
-        """اطلاع‌رسانی نوبت‌های جدید - فعلاً غیرفعال"""
+        """اطلاع‌رسانی نوبت‌های جدید"""
         try:
-            # فعلاً غیرفعال تا مشکل SQLAlchemy حل شود
-            pass
+            if self.telegram_bot:
+                await self.telegram_bot.send_appointment_alert(doctor, appointments)
                 
         except Exception as e:
             self.logger.error(f"❌ خطا در اطلاع‌رسانی: {e}")
