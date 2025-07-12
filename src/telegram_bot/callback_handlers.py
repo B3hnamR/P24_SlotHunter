@@ -73,6 +73,8 @@ class CallbackHandlers:
                 await CallbackHandlers._handle_show_doctors(query)
             elif data == "show_subscriptions":
                 await CallbackHandlers._handle_show_subscriptions(query, user_id)
+            elif data == "refresh_all_subscriptions":
+                await CallbackHandlers._handle_refresh_all_subscriptions(query, user_id)
             # Admin callbacks (only implemented ones)
             elif data.startswith("admin_"):
                 await CallbackHandlers._handle_admin_callbacks(query, data, user_id)
@@ -1029,4 +1031,81 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
         except Exception as e:
             logger.error(f"❌ خطا در داشبورد ادمین: {e}")
+            await query.edit_message_text(MessageFormatter.error_message())
+    
+    @staticmethod
+    async def _handle_refresh_all_subscriptions(query, user_id):
+        """بروزرسانی همه اشتراک‌ها"""
+        try:
+            with db_session() as session:
+                user = session.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    await query.edit_message_text("❌ کاربر یافت نشد.")
+                    return
+                
+                # بروزرسانی آخرین فعالیت کاربر
+                user.last_activity = datetime.utcnow()
+                session.commit()
+                
+                # دریافت اشتراک‌های فعال
+                active_subscriptions = [
+                    sub for sub in user.subscriptions if sub.is_active
+                ]
+                
+                if not active_subscriptions:
+                    text = f"""
+📝 **اشتراک‌های من (بروزرسانی شده)**
+
+❌ شما در هیچ دکتری مشترک نیستید.
+
+💡 برای اشتراک جدید از دکمه زیر استفاده کنید.
+
+⏰ **آخرین بروزرسانی:** {datetime.now().strftime('%Y/%m/%d %H:%M')}
+                    """
+                else:
+                    # آمار نوبت‌های امروز
+                    today = datetime.now().date()
+                    appointments_today = session.query(AppointmentLog).join(Doctor).join(Subscription).filter(
+                        Subscription.user_id == user.id,
+                        Subscription.is_active == True,
+                        AppointmentLog.created_at >= today
+                    ).count()
+                    
+                    text = f"""
+📝 **اشتراک‌های من (بروزرسانی شده)**
+
+✅ **{len(active_subscriptions)} اشتراک فعال:**
+
+                    """
+                    for i, sub in enumerate(active_subscriptions, 1):
+                        date_str = sub.created_at.strftime('%Y/%m/%d') if sub.created_at else "نامشخص"
+                        
+                        # آمار نوبت‌های این دکتر امروز
+                        doctor_appointments_today = session.query(AppointmentLog).filter(
+                            AppointmentLog.doctor_id == sub.doctor.id,
+                            AppointmentLog.created_at >= today
+                        ).count()
+                        
+                        text += f"**{i}. {sub.doctor.name}**\n"
+                        text += f"   🏥 {sub.doctor.specialty}\n"
+                        text += f"   📅 عضویت: {date_str}\n"
+                        text += f"   🎯 نوبت‌های امروز: {doctor_appointments_today}\n\n"
+                    
+                    text += f"""
+📊 **آمار کلی امروز:**
+• نوبت‌های پیدا شده: {appointments_today}
+
+⏰ **آخرین بروزرسانی:** {datetime.now().strftime('%Y/%m/%d %H:%M')}
+                    """
+                
+                keyboard = MenuHandlers.get_subscription_management_keyboard(active_subscriptions)
+                
+                await query.edit_message_text(
+                    text,
+                    parse_mode='Markdown',
+                    reply_markup=keyboard
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ خطا در بروزرسانی اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
