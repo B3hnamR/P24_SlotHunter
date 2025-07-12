@@ -59,17 +59,19 @@ class SlotHunter:
             self.logger.error(f"❌ خطا در راه‌اندازی ربات: {e}")
             return
         
-        doctors = self.config.get_doctors()
-        if not doctors:
-            self.logger.error("❌ هیچ دکتری در تنظیمات یافت نشد")
-            return
-        
-        self.logger.info(f"👨‍⚕️ {len(doctors)} دکتر در حال نظارت:")
-        for doctor in doctors:
-            if doctor.is_active:
-                self.logger.info(f"  ✅ {doctor.name} - {doctor.specialty}")
-            else:
-                self.logger.info(f"  ⏸️ {doctor.name} - غیرفعال")
+        # بررسی دکترها از دیتابیس
+        with db_session() as session:
+            db_doctors = session.query(DBDoctor).all()
+            
+        if not db_doctors:
+            self.logger.warning("⚠️ هیچ دکتری در دیتابیس یافت نشد - ربات فقط برای مدیریت فعال است")
+        else:
+            self.logger.info(f"👨‍⚕️ {len(db_doctors)} دکتر در دیتابیس:")
+            for doctor in db_doctors:
+                if doctor.is_active:
+                    self.logger.info(f"  ✅ {doctor.name} - {doctor.specialty}")
+                else:
+                    self.logger.info(f"  ⏸️ {doctor.name} - غیرفعال")
         
         self.running = True
         
@@ -124,15 +126,20 @@ class SlotHunter:
     
     async def monitor_loop(self):
         """حلقه اصلی نظارت"""
-        active_doctors = [d for d in self.config.get_doctors() if d.is_active]
-        
         while self.running:
             try:
-                self.logger.info("🔍 شروع دور جدید بررسی...")
+                # دریافت دکترهای فعال از دیتابیس
+                with db_session() as session:
+                    active_doctors = session.query(DBDoctor).filter(DBDoctor.is_active == True).all()
                 
-                # بررسی همه دکترها
-                for doctor in active_doctors:
-                    await self.check_doctor(doctor)
+                if active_doctors:
+                    self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
+                    
+                    # بررسی همه دکترها
+                    for doctor in active_doctors:
+                        await self.check_doctor(doctor)
+                else:
+                    self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
                 
                 # صبر تا دور بعدی
                 self.logger.info(f"⏰ صبر {self.config.check_interval} ثانیه تا دور بعدی...")
