@@ -4,7 +4,7 @@
 # Complete automated server management for P24 appointment hunter
 # Version: 2.0 - Enhanced with auto-setup and intelligent management
 
-set -euo pipefail  # Exit on error, undefined vars, pipe failures
+set -uo pipefail  # Exit on undefined vars, pipe failures (but not on command errors)
 
 # Configuration
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
