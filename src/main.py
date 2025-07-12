@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-فایل اصلی P24_SlotHunter
+فایل اصلی P24_SlotHunter - نسخه حل شده
 """
 import asyncio
 import signal
@@ -97,7 +97,7 @@ class SlotHunter:
         )
     
     async def _load_doctors_to_db(self):
-        """بارگذاری دکترها ��ر دیتابیس"""
+        """بارگذاری دکترها در دی��ابیس"""
         try:
             config_doctors = self.config.get_doctors()
             
@@ -197,8 +197,12 @@ class SlotHunter:
             if appointments:
                 self.logger.info(f"🎯 {len(appointments)} نوبت برای {simple_doctor.name} پیدا شد!")
                 
-                # اطلاع‌رسانی تلگرام
-                await self.notify_appointments(simple_doctor, appointments)
+                # نمایش در لاگ
+                for apt in appointments[:3]:
+                    self.logger.info(f"  ⏰ {apt.time_str}")
+                
+                # فعلاً اطلاع‌رسانی تلگرام را غیرفعال می‌کنیم تا مشکل SQLAlchemy حل شود
+                # await self.notify_appointments(simple_doctor, appointments)
             else:
                 self.logger.debug(f"📅 هیچ نوبتی برای {simple_doctor.name} موجود نیست")
                 
@@ -206,15 +210,10 @@ class SlotHunter:
             self.logger.error(f"❌ خطا در بررسی {doctor_data['name']}: {e}")
     
     async def notify_appointments(self, doctor, appointments):
-        """اطلاع‌رسانی نوبت‌های جدید"""
+        """اطلاع‌رسانی نوبت‌های جدید - فعلاً غیرفعال"""
         try:
-            if self.telegram_bot:
-                await self.telegram_bot.send_appointment_alert(doctor, appointments)
-            
-            # نمایش در لاگ
-            self.logger.info(f"📢 اطلاع‌رسانی {len(appointments)} نوبت برای {doctor.name}")
-            for apt in appointments[:3]:
-                self.logger.info(f"  ⏰ {apt.time_str}")
+            # فعلاً غیرفعال تا مشکل SQLAlchemy حل شود
+            pass
                 
         except Exception as e:
             self.logger.error(f"❌ خطا در اطلاع‌رسانی: {e}")
