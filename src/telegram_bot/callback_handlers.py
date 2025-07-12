@@ -893,17 +893,30 @@ https://www.paziresh24.com/dr/{doctor.slug}/
     @staticmethod
     async def _handle_admin_callbacks(query, data, user_id):
         """مدیریت callback های ادمین - فقط قسمت‌های کاربردی"""
-        from src.telegram_bot.user_roles import user_role_manager
-        
-        # بررسی دسترسی ادمین
-        if not user_role_manager.is_admin_or_higher(user_id):
-            await query.edit_message_text(
-                "❌ شما دسترسی به این بخش را ندارید.",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
-                ]])
-            )
-            return
+        try:
+            from src.telegram_bot.user_roles import user_role_manager
+            
+            # بررسی دسترسی ادمین
+            if not user_role_manager.is_admin_or_higher(user_id):
+                await query.edit_message_text(
+                    "❌ شما دسترسی به این بخش را ندارید.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                    ]])
+                )
+                return
+        except ImportError:
+            # اگر user_roles موجود نباشد، فقط ادمین اصلی را بررسی کن
+            from src.utils.config import Config
+            config = Config()
+            if user_id != config.admin_chat_id:
+                await query.edit_message_text(
+                    "❌ شما دسترسی به این بخش را ندارید.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                    ]])
+                )
+                return
         
         admin_action = data.replace("admin_", "")
         

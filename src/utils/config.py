@@ -99,7 +99,15 @@ class Config:
                 chat_id = int(chat_id)
             else:
                 chat_id = 0
-        return chat_id
+        
+        # اطمینان از اینکه همیشه int برگردانده شود
+        if isinstance(chat_id, str):
+            if chat_id.isdigit():
+                chat_id = int(chat_id)
+            else:
+                chat_id = 0
+        
+        return int(chat_id) if chat_id else 0
     
     @property
     def check_interval(self) -> int:

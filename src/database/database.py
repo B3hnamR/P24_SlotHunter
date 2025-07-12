@@ -33,8 +33,9 @@ class DatabaseManager:
         try:
             # ایجاد پوشه data در صورت عدم وجود
             if self.database_url.startswith("sqlite:///"):
-                db_path = self.database_url.replace("sqlite:///", "")
-                os.makedirs(os.path.dirname(db_path), exist_ok=True)
+                from pathlib import Path
+                db_path = Path(self.database_url.replace("sqlite:///", "")).resolve()
+                db_path.parent.mkdir(parents=True, exist_ok=True)
             
             # ایجاد engine
             self.engine = create_engine(
