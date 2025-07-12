@@ -27,7 +27,7 @@
 
 ### 1. دانلود پروژه
 ```bash
-git clone https://github.com/your-username/P24_SlotHunter.git
+git clone https://github.com/B3hnamR/P24_SlotHunter.git
 cd P24_SlotHunter
 ```
 
