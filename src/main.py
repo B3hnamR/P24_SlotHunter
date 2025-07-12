@@ -66,7 +66,7 @@ class SlotHunter:
                 active_doctors_count = session.query(DBDoctor).filter(DBDoctor.is_active == True).count()
                 
                 if db_doctors_count == 0:
-                    self.logger.warning("⚠️ هیچ دکتری در دی��ابیس یافت نشد - ربات فقط برای مدیریت فعال است")
+                    self.logger.warning("⚠️ هیچ دکتری در دیتابیس یافت نشد - ربات فقط برای مدیریت فعال است")
                 else:
                     self.logger.info(f"👨‍⚕️ {db_doctors_count} دکتر در دیتابیس ({active_doctors_count} فعال)")
         except Exception as e:
@@ -130,15 +130,15 @@ class SlotHunter:
                 # دریافت دکترهای فعال از دیتابیس
                 with db_session() as session:
                     active_doctors = session.query(DBDoctor).filter(DBDoctor.is_active == True).all()
-                
-                if active_doctors:
-                    self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
                     
-                    # بررسی همه دکترها
-                    for doctor in active_doctors:
-                        await self.check_doctor(doctor)
-                else:
-                    self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
+                    if active_doctors:
+                        self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
+                        
+                        # بررسی همه دکترها داخل همین session
+                        for doctor in active_doctors:
+                            await self.check_doctor_in_session(session, doctor)
+                    else:
+                        self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
                 
                 # صبر تا دور بعدی
                 self.logger.info(f"⏰ صبر {self.config.check_interval} ثانیه تا دور بعدی...")
@@ -151,8 +151,47 @@ class SlotHunter:
                 self.logger.error(f"❌ خطا در حلقه نظارت: {e}")
                 await asyncio.sleep(60)  # صبر بیشتر در صورت خطا
     
+    async def check_doctor_in_session(self, session, doctor):
+        """بررسی نوبت‌های یک دکتر داخل session"""
+        try:
+            # ایجاد یک doctor object جدید با اطلاعات مورد نیاز
+            doctor_data = {
+                'name': doctor.name,
+                'slug': doctor.slug,
+                'center_id': doctor.center_id,
+                'service_id': doctor.service_id,
+                'user_center_id': doctor.user_center_id,
+                'terminal_id': doctor.terminal_id,
+                'specialty': doctor.specialty,
+                'center_name': doctor.center_name,
+                'center_address': doctor.center_address,
+                'center_phone': doctor.center_phone
+            }
+            
+            # ایجاد یک object ساده برای API
+            class SimpleDoctor:
+                def __init__(self, data):
+                    for key, value in data.items():
+                        setattr(self, key, value)
+            
+            simple_doctor = SimpleDoctor(doctor_data)
+            
+            api = PazireshAPI(simple_doctor, timeout=self.config.api_timeout)
+            appointments = api.get_available_appointments(days_ahead=self.config.days_ahead)
+            
+            if appointments:
+                self.logger.info(f"🎯 {len(appointments)} نوبت برای {doctor.name} پیدا شد!")
+                
+                # اطلاع‌رسانی تلگرام
+                await self.notify_appointments(simple_doctor, appointments)
+            else:
+                self.logger.debug(f"📅 هیچ نوبتی برای {doctor.name} موجود نیست")
+                
+        except Exception as e:
+            self.logger.error(f"❌ خطا در بررسی {doctor.name}: {e}")
+    
     async def check_doctor(self, doctor):
-        """بررسی نوبت‌های یک دکتر"""
+        """بررسی نوبت‌های یک دکتر - متد قدیمی برای سازگاری"""
         try:
             api = PazireshAPI(doctor, timeout=self.config.api_timeout)
             appointments = api.get_available_appointments(days_ahead=self.config.days_ahead)
