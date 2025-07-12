@@ -77,6 +77,11 @@ class SlotHunterBot:
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
         
+        # Callback query handlers - Order matters!
+        # Conversation handlers MUST come first to catch their entry points
+        self.application.add_handler(add_doctor_conv)
+        self.application.add_handler(set_interval_conv)
+        
         # Command handlers (legacy support)
         self.application.add_handler(CommandHandler("start", self._handle_start_command))
         self.application.add_handler(CommandHandler("help", TelegramHandlers.help_command))
@@ -84,19 +89,6 @@ class SlotHunterBot:
         self.application.add_handler(CommandHandler("subscribe", TelegramHandlers.subscribe_command))
         self.application.add_handler(CommandHandler("unsubscribe", TelegramHandlers.unsubscribe_command))
         self.application.add_handler(CommandHandler("status", TelegramHandlers.status_command))
-        
-        # Menu-based message handlers
-        self.application.add_handler(MessageHandler(
-            filters.TEXT & ~filters.COMMAND, 
-            MenuHandlers.handle_main_menu
-        ))
-        
-        # Admin commands - Removed old /admin command (now using role-based menu system)
-        
-        # Callback query handlers - Order matters!
-        # Conversation handlers MUST come first to catch their entry points
-        self.application.add_handler(add_doctor_conv)
-        self.application.add_handler(set_interval_conv)
         
         # Specific admin callbacks - These must come before the general handler
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
@@ -108,6 +100,12 @@ class SlotHunterBot:
         
         # Menu callbacks (new role-based system) - This handles all other callbacks
         self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
+        
+        # Menu-based message handlers - MUST be last to not interfere with conversations
+        self.application.add_handler(MessageHandler(
+            filters.TEXT & ~filters.COMMAND, 
+            MenuHandlers.handle_main_menu
+        ))
         
         logger.info("✅ Handler های ربات تنظیم شدند")
     
