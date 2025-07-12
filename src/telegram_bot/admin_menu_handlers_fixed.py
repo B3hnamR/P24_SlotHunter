@@ -26,7 +26,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if not user_role_manager.is_moderator_or_higher(user_id):
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",
@@ -92,7 +91,6 @@ class AdminMenuHandlers:
                 
         except Exception as e:
             logger.error(f"❌ خطا در نمایش آمار سیستم: {e}")
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 MessageFormatter.error_message(),
@@ -106,7 +104,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if not user_role_manager.is_moderator_or_higher(user_id):
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",
@@ -157,7 +154,6 @@ class AdminMenuHandlers:
                 
         except Exception as e:
             logger.error(f"❌ خطا در نمایش مدیریت کاربران: {e}")
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 MessageFormatter.error_message(),
@@ -171,7 +167,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if not user_role_manager.is_admin_or_higher(user_id):
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",
@@ -222,7 +217,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if not user_role_manager.is_admin_or_higher(user_id):
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",
@@ -265,7 +259,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if user_role_manager.get_user_role(user_id) != UserRole.SUPER_ADMIN:
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",
@@ -311,7 +304,6 @@ class AdminMenuHandlers:
         
         # بررسی دسترسی
         if user_role_manager.get_user_role(user_id) != UserRole.SUPER_ADMIN:
-            # Import locally to avoid circular import
             from src.telegram_bot.menu_handlers import MenuHandlers
             await update.message.reply_text(
                 "❌ شما دسترسی به این بخش را ندارید.",

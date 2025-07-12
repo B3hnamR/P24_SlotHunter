@@ -167,60 +167,22 @@ class MenuHandlers:
                 await MenuHandlers.show_support_menu(update, context)
             
             # منوهای مدیریتی
-            elif message_text == "📈 آمار سیستم":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+            elif message_text in ["📈 آمار سیستم", "👥 مدیریت کاربران", "👑 پنل ادمین", "🔧 مدیریت سیستم", "⭐ سوپر ادمین", "🛠️ تنظیمات پیشرفته"]:
+                # از ایمپورت محلی برای جلوگیری از وابستگی متقابل استفاده می‌شود
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+
+                if message_text == "📈 آمار سیستم":
                     await AdminMenuHandlers.show_system_stats_menu(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
-            elif message_text == "👥 مدیریت کاربران":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                elif message_text == "👥 مدیریت کاربران":
                     await AdminMenuHandlers.show_user_management_menu(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
-            elif message_text == "👑 پنل ادمین":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                elif message_text == "👑 پنل ادمین":
                     await AdminMenuHandlers.show_admin_panel(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
-            elif message_text == "🔧 مدیریت سیستم":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                elif message_text == "🔧 مدیریت سیستم":
                     await AdminMenuHandlers.show_system_management_menu(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
-            elif message_text == "⭐ سوپر ادمین":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                elif message_text == "⭐ سوپر ادمین":
                     await AdminMenuHandlers.show_super_admin_menu(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
-            elif message_text == "🛠️ تنظیمات پیشرفته":
-                try:
-                    from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                elif message_text == "🛠️ تنظیمات پیشرفته":
                     await AdminMenuHandlers.show_advanced_settings_menu(update, context)
-                except ImportError:
-                    await update.message.reply_text(
-                        "🔧 این قسمت در حال توسعه است.",
-                        reply_markup=MenuHandlers.get_main_menu_keyboard(update.effective_user.id)
-                    )
             
             else:
                 # پیام خوش‌آمدگویی با منو

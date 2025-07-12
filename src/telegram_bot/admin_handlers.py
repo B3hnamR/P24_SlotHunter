@@ -59,12 +59,20 @@ class TelegramAdminHandlers:
             
             admin_text = "🔧 پنل مدیریت P24_SlotHunter\n\nانتخاب کنید:"
             
-            await update.message.reply_text(admin_text, reply_markup=reply_markup)
+            # اگر از callback query آمده، ویرایش کن، وگرنه پیام جدید بفرست
+            if update.callback_query:
+                await update.callback_query.edit_message_text(admin_text, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(admin_text, reply_markup=reply_markup)
             logger.info("Admin panel sent successfully")
             
         except Exception as e:
             logger.error(f"خطا در نمایش پنل ادمین: {e}")
-            await update.message.reply_text("❌ خطا در بارگذاری پنل مدیریت.")
+            error_message = "❌ خطا در بارگذاری پنل مدیریت."
+            if update.callback_query:
+                await update.callback_query.edit_message_text(error_message)
+            else:
+                await update.message.reply_text(error_message)
     
     @staticmethod
     async def start_add_doctor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,43 +111,33 @@ class TelegramAdminHandlers:
                 "https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/"
             )
             return ADD_DOCTOR_LINK
+
+        from src.api.parser import extract_doctor_info_from_url
+
+        await update.message.reply_text("در حال استخراج اطلاعات دکتر... لطفاً صبر کنید.")
         
-        # استخراج slug دکتر
-        slug = link.split('/dr/')[1].rstrip('/')
-        slug = urllib.parse.unquote(slug)
+        doctor_info = extract_doctor_info_from_url(link)
         
-        if not slug:
+        if not doctor_info:
             await update.message.reply_text(
                 "❌ نتوانستم اطلاعات دکتر را از لینک استخراج کنم.\n\n"
-                "لطفاً لینک صحیح ارسال کنید."
+                "لطفاً از صحت لینک مطمئن شوید و دوباره تلاش کنید."
             )
             return ADD_DOCTOR_LINK
-        
-        # ذخیره اطلاعات در context
-        doctor_info = {
-            'name': f'دکتر از {slug}',
-            'slug': slug,
-            'specialty': 'نامشخص',
-            'center_name': 'نامشخص',
-            'center_address': 'نامشخص',
-            'center_phone': 'نامشخص',
-            'center_id': f'center_{slug}',
-            'service_id': f'service_{slug}',
-            'user_center_id': f'user_{slug}',
-            'terminal_id': f'terminal_{slug}'
-        }
         
         context.user_data['doctor_info'] = doctor_info
         
         # نمایش اطلاعات برای تأیید
         confirm_text = f"""✅ اطلاعات دکتر:
 
-👨‍⚕️ نام: {doctor_info['name']}
-🏥 تخصص: {doctor_info['specialty']}
-🏢 مرکز: {doctor_info['center_name']}
+👨‍⚕️ نام: {doctor_info.get('name', 'نامشخص')}
+🏥 تخصص: {doctor_info.get('specialty', 'نامشخص')}
+🏢 مرکز: {doctor_info.get('center_name', 'نامشخص')}
 
 🔧 اطلاعات فنی:
-• Slug: {doctor_info['slug']}
+• Slug: {doctor_info.get('slug', 'نامشخص')}
+• Center ID: {doctor_info.get('center_id', 'نامشخص')}
+• Service ID: {doctor_info.get('service_id', 'نامشخص')}
 
 آیا می‌خواهید این دکتر را اضافه کنید؟"""
         
@@ -285,14 +283,17 @@ class TelegramAdminHandlers:
             if interval < 1:
                 await update.message.reply_text(
                     "❌ زمان بررسی باید حداقل 1 ثانیه باشد.\n\n"
-                    "لطفاً عد�� معتبر وارد کنید:"
+                    "لطفاً عدد معتبر وارد کنید:"
                 )
                 return SET_CHECK_INTERVAL
             
+            # ذخیره در دیتابیس یا فایل کانفیگ
+            config = Config()
+            config.set_check_interval(interval) # فرض بر اینکه این متد وجود دارد
+
             await update.message.reply_text(
                 f"✅ زمان بررسی به {interval} ثانیه تغییر کرد.\n\n"
-                f"⚠️ برای اعمال تغییرات، سیستم باید restart شود.\n\n"
-                f"🔄 برای بازگشت: /admin"
+                f"این تغییر در دور بعدی نظارت اعمال خواهد شد."
             )
             
             logger.info(f"زمان بررسی توسط ادمین تغییر کرد: {interval} ثانیه")

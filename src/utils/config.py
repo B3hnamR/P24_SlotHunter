@@ -173,3 +173,17 @@ class Config:
         """بارگذاری مجدد تنظیمات"""
         load_dotenv()  # بارگذاری مجدد .env
         self._config = self._load_config()
+
+    def set_check_interval(self, interval: int):
+        """تنظیم فاصله زمانی بررسی"""
+        if 'monitoring' not in self._config:
+            self._config['monitoring'] = {}
+        self._config['monitoring']['check_interval'] = interval
+
+        # ذخیره در فایل .env برای ماندگاری
+        from dotenv import set_key
+        dotenv_path = Path('.env')
+        set_key(dotenv_path, 'CHECK_INTERVAL', str(interval))
+
+        # اعمال فوری در نمونه فعلی
+        self.reload()

@@ -75,9 +75,15 @@ class CallbackHandlers:
                 await CallbackHandlers._handle_show_subscriptions(query, user_id)
             elif data == "refresh_all_subscriptions":
                 await CallbackHandlers._handle_refresh_all_subscriptions(query, user_id)
-            # Admin callbacks (only implemented ones)
+            # Admin callbacks
             elif data.startswith("admin_"):
                 await CallbackHandlers._handle_admin_callbacks(query, data, user_id)
+            elif data.startswith("toggle_doctor_"):
+                from src.telegram_bot.admin_handlers import TelegramAdminHandlers
+                await TelegramAdminHandlers.toggle_doctor_status(update, context)
+            elif data == "back_to_admin_panel":
+                from src.telegram_bot.admin_handlers import TelegramAdminHandlers
+                await TelegramAdminHandlers.admin_panel(update, context)
             else:
                 await query.edit_message_text(
                     "❌ دستور نامشخص. لطفاً دوباره تلاش کنید.",
@@ -891,48 +897,29 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             logger.error(f"❌ خطا در نمایش اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
-    # Admin callback handlers - فقط قسمت‌های پیاده‌سازی شده
     @staticmethod
     async def _handle_admin_callbacks(query, data, user_id):
-        """مدیریت callback های ادمین - فقط قسمت‌های کاربردی"""
-        try:
-            from src.telegram_bot.user_roles import user_role_manager
-            
-            # بررسی دسترسی ادمین
-            if not user_role_manager.is_admin_or_higher(user_id):
-                await query.edit_message_text(
-                    "❌ شما دسترسی به این بخش را ندارید.",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
-                    ]])
-                )
-                return
-        except ImportError:
-            # اگر user_roles موجود نباشد، فقط ادمین اصلی را بررسی کن
-            from src.utils.config import Config
-            config = Config()
-            if user_id != config.admin_chat_id:
-                await query.edit_message_text(
-                    "❌ شما دسترسی به این بخش را ندارید.",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
-                    ]])
-                )
-                return
+        """مدیریت callback های ادمین"""
+        from src.telegram_bot.admin_handlers import TelegramAdminHandlers
+        update = query.message.reply_to_message.update if query.message.reply_to_message else query
         
-        admin_action = data.replace("admin_", "")
-        
-        # فقط قسمت‌های پیاده‌سازی شده
-        if admin_action == "manage_doctors":
-            await CallbackHandlers._handle_admin_manage_doctors(query, user_id)
-        elif admin_action == "dashboard":
-            await CallbackHandlers._handle_admin_dashboard(query, user_id)
+        if not TelegramAdminHandlers.is_admin(user_id):
+            await query.edit_message_text("❌ شما دسترسی ادمین ندارید.")
+            return
+
+        if data == "admin_manage_doctors":
+            await TelegramAdminHandlers.manage_doctors(update, None)
+        elif data == "admin_stats":
+            await TelegramAdminHandlers.show_admin_stats(update, None)
+        elif data == "admin_manage_users":
+            await TelegramAdminHandlers.show_user_management(update, None)
+        elif data == "admin_access_settings":
+            await TelegramAdminHandlers.show_access_settings(update, None)
         else:
-            # برای سایر ��وارد که هنوز پیاده‌سازی نشده‌اند
             await query.edit_message_text(
-                f"🔧 **{admin_action}**\n\nاین قسمت در حال توسعه است.",
+                "این دکمه هنوز پیاده‌سازی نشده است.",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
                 ]])
             )
     
