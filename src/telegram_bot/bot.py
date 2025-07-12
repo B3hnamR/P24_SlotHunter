@@ -98,11 +98,15 @@ class SlotHunterBot:
         self.application.add_handler(add_doctor_conv)
         self.application.add_handler(set_interval_conv)
         
-        # Legacy admin callbacks (keeping for backward compatibility with old admin_handlers)
+        # Specific admin callbacks - These must come before the general handler
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
         self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.toggle_doctor_status, pattern="^toggle_doctor_"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_admin_stats, pattern="^admin_stats$"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_user_management, pattern="^admin_manage_users$"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_access_settings, pattern="^admin_access_settings$"))
+        self.application.add_handler(CallbackQueryHandler(self._handle_admin_callbacks, pattern="^back_to_admin_panel$"))
         
-        # Menu callbacks (new role-based system) - This handles all other admin_ callbacks
+        # Menu callbacks (new role-based system) - This handles all other callbacks
         self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
         
         logger.info("✅ Handler های ربات تنظیم شدند")
