@@ -17,7 +17,7 @@ ENV_EXAMPLE="$PROJECT_DIR/.env.example"
 CONFIG_FILE="$PROJECT_DIR/config/config.yaml"
 DB_FILE="$PROJECT_DIR/data/slothunter.db"
 REQUIREMENTS_FILE="$PROJECT_DIR/requirements.txt"
-MAIN_SCRIPT="$PROJECT_DIR/main.py"
+MAIN_SCRIPT="$PROJECT_DIR/src/main.py"
 SERVICE_NAME="slothunter"
 BACKUP_DIR="$PROJECT_DIR/backups"
 
@@ -331,7 +331,7 @@ start_service() {
 #!/bin/bash
 cd "$PROJECT_DIR"
 source "$VENV_DIR/bin/activate"
-exec python main.py
+exec python src/main.py
 EOF
     chmod +x "$PROJECT_DIR/start_service.sh"
     
@@ -518,7 +518,7 @@ User=$current_user
 Group=$current_user
 WorkingDirectory=$PROJECT_DIR
 Environment=PATH=$VENV_DIR/bin
-ExecStart=$VENV_DIR/bin/python main.py
+ExecStart=$VENV_DIR/bin/python src/main.py
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
 RestartSec=10
