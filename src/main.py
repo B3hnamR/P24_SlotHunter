@@ -60,18 +60,17 @@ class SlotHunter:
             return
         
         # بررسی دکترها از دیتابیس
-        with db_session() as session:
-            db_doctors = session.query(DBDoctor).all()
-            
-        if not db_doctors:
-            self.logger.warning("⚠️ هیچ دکتری در دیتابیس یافت نشد - ربات فقط برای مدیریت فعال است")
-        else:
-            self.logger.info(f"👨‍⚕️ {len(db_doctors)} دکتر در دیتابیس:")
-            for doctor in db_doctors:
-                if doctor.is_active:
-                    self.logger.info(f"  ✅ {doctor.name} - {doctor.specialty}")
+        try:
+            with db_session() as session:
+                db_doctors_count = session.query(DBDoctor).count()
+                active_doctors_count = session.query(DBDoctor).filter(DBDoctor.is_active == True).count()
+                
+                if db_doctors_count == 0:
+                    self.logger.warning("⚠️ هیچ دکتری در دی��ابیس یافت نشد - ربات فقط برای مدیریت فعال است")
                 else:
-                    self.logger.info(f"  ⏸️ {doctor.name} - غیرفعال")
+                    self.logger.info(f"👨‍⚕️ {db_doctors_count} دکتر در دیتابیس ({active_doctors_count} فعال)")
+        except Exception as e:
+            self.logger.error(f"❌ خطا در بررسی دکترها: {e}")
         
         self.running = True
         
