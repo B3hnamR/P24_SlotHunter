@@ -1,28 +1,42 @@
-# Alembic Migration Guide
+# Alembic Database Migrations
 
-برای مدیریت migration دیتابیس پروژه P24_SlotHunter از Alembic استفاده کنید.
+This directory contains database migration files for P24_SlotHunter.
 
-## دستورات اصلی
+## Files
 
-- ایجاد migration جدید:
-  ```
-  alembic revision --autogenerate -m "توضیح تغییر"
-  ```
-- اعمال migrationها:
-  ```
-  alembic upgrade head
-  ```
-- مشاهده وضعیت migration:
-  ```
-  alembic current
-  ```
-- بازگشت به migration قبلی:
-  ```
-  alembic downgrade -1
-  ```
+- `env.py` - Alembic environment configuration
+- `script.py.mako` - Template for generating migration files
+- `versions/` - Directory containing migration files
 
-## نکات مهم
-- آدرس دیتابیس به صورت پیش‌فرض sqlite:///data/slothunter.db است (یا از متغیر env: DATABASE_URL)
-- مدل‌های دیتابیس در src/database/models.py تعریف شده‌اند
-- قبل از هر تغییر در مدل‌ها، migration جدید بسازید و اعمال کنید
-- برای اطلاعات بیشتر به مستندات Alembic مراجعه کنید: https://alembic.sqlalchemy.org
+## Usage
+
+### Create a new migration
+```bash
+alembic revision --autogenerate -m "Description of changes"
+```
+
+### Apply migrations
+```bash
+alembic upgrade head
+```
+
+### Downgrade migrations
+```bash
+alembic downgrade -1
+```
+
+### Show current revision
+```bash
+alembic current
+```
+
+### Show migration history
+```bash
+alembic history
+```
+
+## Notes
+
+- Migrations are automatically created and applied by the server manager
+- The database uses SQLite by default
+- All models are defined in `src/database/models.py`

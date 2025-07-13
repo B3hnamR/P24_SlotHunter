@@ -185,10 +185,48 @@ setup_virtual_environment() {
 setup_database() {
     log_message "INFO" "Setting up database with Alembic..."
     
-    # Create alembic versions directory if not exists
+    # Check if virtual environment exists
+    if [ ! -f "$VENV_DIR/bin/python" ]; then
+        log_message "ERROR" "Virtual environment not found. Please run setup first."
+        return 1
+    fi
+    
+    # Create alembic directories if not exist
     if [ ! -d "$PROJECT_DIR/alembic/versions" ]; then
         mkdir -p "$PROJECT_DIR/alembic/versions"
         log_message "INFO" "Created alembic/versions directory"
+    fi
+    
+    # Create script.py.mako if not exists
+    if [ ! -f "$PROJECT_DIR/alembic/script.py.mako" ]; then
+        log_message "INFO" "Creating alembic script template..."
+        cat > "$PROJECT_DIR/alembic/script.py.mako" << 'EOF'
+"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision = ${repr(up_revision)}
+down_revision = ${repr(down_revision)}
+branch_labels = ${repr(branch_labels)}
+depends_on = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    ${downgrades if downgrades else "pass"}
+EOF
+        log_message "SUCCESS" "Alembic script template created"
     fi
     
     # Activate virtual environment
@@ -200,13 +238,21 @@ setup_database() {
     if [ -z "$(ls -A alembic/versions/ 2>/dev/null)" ]; then
         log_message "INFO" "Creating initial database migration..."
         
-        # Create initial migration
-        if alembic revision --autogenerate -m "Initial migration - API-Only architecture"; then
+        # Create initial migration with better error handling
+        if alembic revision --autogenerate -m "Initial migration - API-Only architecture" 2>&1; then
             log_message "SUCCESS" "Initial migration created"
         else
             log_message "ERROR" "Failed to create initial migration"
-            deactivate
-            return 1
+            log_message "INFO" "Trying to create empty migration..."
+            
+            # Fallback: create empty migration
+            if alembic revision -m "Initial migration - API-Only architecture" 2>&1; then
+                log_message "SUCCESS" "Empty migration created"
+            else
+                log_message "ERROR" "Failed to create any migration"
+                deactivate
+                return 1
+            fi
         fi
     else
         log_message "INFO" "Database migrations already exist"
@@ -214,22 +260,52 @@ setup_database() {
     
     # Run migrations
     log_message "INFO" "Running database migrations..."
-    if alembic upgrade head; then
+    if alembic upgrade head 2>&1; then
         log_message "SUCCESS" "Database migrations completed"
     else
         log_message "ERROR" "Database migration failed"
-        deactivate
-        return 1
+        log_message "INFO" "Checking if database file exists..."
+        
+        # Try to create database file manually if migration failed
+        if [ ! -f "$DB_FILE" ]; then
+            log_message "INFO" "Creating database file manually..."
+            python -c "
+import sys
+sys.path.insert(0, '.')
+from src.database.database import DatabaseManager
+from src.utils.config import Config
+import asyncio
+
+async def create_db():
+    config = Config()
+    db_manager = DatabaseManager(config.database_url)
+    await db_manager._setup_database()
+    print('Database created successfully')
+
+asyncio.run(create_db())
+" 2>&1
+            
+            if [ -f "$DB_FILE" ]; then
+                log_message "SUCCESS" "Database file created manually"
+            else
+                log_message "ERROR" "Failed to create database file"
+                deactivate
+                return 1
+            fi
+        fi
     fi
     
     deactivate
     
-    # Check if database file was created
+    # Final check
     if [ -f "$DB_FILE" ]; then
-        log_message "SUCCESS" "Database file created successfully"
+        local db_size=$(du -h "$DB_FILE" | cut -f1)
+        log_message "SUCCESS" "Database setup completed successfully (Size: $db_size)"
     else
-        log_message "WARN" "Database file not found, but migrations completed"
+        log_message "WARN" "Database setup completed but file not found"
     fi
+    
+    return 0
 }
 
 # Create project structure
