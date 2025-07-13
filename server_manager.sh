@@ -181,6 +181,57 @@ setup_virtual_environment() {
     deactivate
 }
 
+# Setup database with Alembic
+setup_database() {
+    log_message "INFO" "Setting up database with Alembic..."
+    
+    # Create alembic versions directory if not exists
+    if [ ! -d "$PROJECT_DIR/alembic/versions" ]; then
+        mkdir -p "$PROJECT_DIR/alembic/versions"
+        log_message "INFO" "Created alembic/versions directory"
+    fi
+    
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+    
+    cd "$PROJECT_DIR"
+    
+    # Check if initial migration exists
+    if [ -z "$(ls -A alembic/versions/ 2>/dev/null)" ]; then
+        log_message "INFO" "Creating initial database migration..."
+        
+        # Create initial migration
+        if alembic revision --autogenerate -m "Initial migration - API-Only architecture"; then
+            log_message "SUCCESS" "Initial migration created"
+        else
+            log_message "ERROR" "Failed to create initial migration"
+            deactivate
+            return 1
+        fi
+    else
+        log_message "INFO" "Database migrations already exist"
+    fi
+    
+    # Run migrations
+    log_message "INFO" "Running database migrations..."
+    if alembic upgrade head; then
+        log_message "SUCCESS" "Database migrations completed"
+    else
+        log_message "ERROR" "Database migration failed"
+        deactivate
+        return 1
+    fi
+    
+    deactivate
+    
+    # Check if database file was created
+    if [ -f "$DB_FILE" ]; then
+        log_message "SUCCESS" "Database file created successfully"
+    else
+        log_message "WARN" "Database file not found, but migrations completed"
+    fi
+}
+
 # Create project structure
 create_project_structure() {
     log_message "INFO" "Creating project directory structure..."
@@ -500,6 +551,15 @@ full_system_setup() {
     local env_needs_config=false
     if ! setup_environment_file; then
         env_needs_config=true
+    fi
+    
+    # Setup database (only if environment is configured)
+    if [ "$env_needs_config" = false ]; then
+        if ! setup_database; then
+            log_message "WARN" "Database setup failed, but continuing..."
+        fi
+    else
+        log_message "INFO" "Skipping database setup - environment needs configuration first"
     fi
     
     # Setup systemd service if running as root or with sudo
@@ -960,8 +1020,9 @@ main_menu() {
         echo -e "${YELLOW} 6.${NC} System Statistics"
         echo -e "${YELLOW} 7.${NC} Health Check"
         echo -e "${YELLOW} 8.${NC} Configuration Wizard"
-        echo -e "${YELLOW} 9.${NC} Full System Setup"
-        echo -e "${YELLOW}10.${NC} Update System"
+        echo -e "${YELLOW} 9.${NC} Setup Database"
+        echo -e "${YELLOW}10.${NC} Full System Setup"
+        echo -e "${YELLOW}11.${NC} Update System"
         echo -e "${YELLOW} 0.${NC} Exit"
         echo ""
         echo -e -n "${CYAN}Your choice: ${NC}"
@@ -976,8 +1037,9 @@ main_menu() {
             6) show_stats ;;
             7) health_check ;;
             8) config_wizard ;;
-            9) full_system_setup; echo -e "${YELLOW}Press Enter to continue...${NC}"; read ;;
-            10) update_system; echo -e "${YELLOW}Press Enter to continue...${NC}"; read ;;
+            9) setup_database; echo -e "${YELLOW}Press Enter to continue...${NC}"; read ;;
+            10) full_system_setup; echo -e "${YELLOW}Press Enter to continue...${NC}"; read ;;
+            11) update_system; echo -e "${YELLOW}Press Enter to continue...${NC}"; read ;;
             0) echo -e "${GREEN}👋 Goodbye!${NC}"; exit 0 ;;
             *) echo -e "${RED}❌ Invalid choice${NC}"; sleep 2 ;;
         esac
