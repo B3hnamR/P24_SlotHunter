@@ -96,7 +96,8 @@ def main():
         "httpx",
         "telegram",
         "sqlalchemy",
-        "aiosqlite"
+        "aiosqlite",
+        "bs4"
     ]
     
     missing_modules = []

@@ -12,7 +12,7 @@ def escape_markdown(text: str) -> str:
     if not isinstance(text, str):
         return text
     for ch in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
-        text = text.replace(ch, f'\{ch}')
+        text = text.replace(ch, f'\\{ch}')
     return text
 
 class MessageFormatter:
