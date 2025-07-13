@@ -51,8 +51,8 @@ class DatabaseManager:
                 bind=self.engine
             )
             
-            # ایجاد جداول
-            Base.metadata.create_all(bind=self.engine)
+            # ایجاد جداول دیگر با این روش انجام نمی‌شود
+            # Base.metadata.create_all(bind=self.engine)
             
             logger.info(f"✅ دیتابیس با موفقیت راه‌اندازی شد: {self.database_url}")
             
@@ -60,21 +60,22 @@ class DatabaseManager:
             logger.error(f"❌ خطا در راه‌اندازی دیتابیس: {e}")
             raise
     
-    def get_session(self) -> Session:
-        """دریافت session جدید"""
+    def _get_session(self) -> Session:
+        """دریافت session جدید (متد داخلی)"""
         if self.SessionLocal is None:
             raise RuntimeError("دیتابیس راه‌اندازی نشده است")
         return self.SessionLocal()
-    
+
     @contextmanager
-    def session_scope(self) -> Generator[Session, None, None]:
-        """Context manager برای session"""
-        session = self.get_session()
+    def _session_scope(self) -> Generator[Session, None, None]:
+        """Context manager برای session (متد داخلی)"""
+        session = self._get_session()
         try:
             yield session
             session.commit()
-        except Exception:
+        except SQLAlchemyError:
             session.rollback()
+            logger.error("❌ خطای دیتابیس رخ داد. Rollback انجام شد.")
             raise
         finally:
             session.close()
@@ -105,13 +106,8 @@ def get_db_manager() -> DatabaseManager:
     return _db_manager
 
 
-def get_db_session() -> Session:
-    """دریافت session دیتابیس"""
-    return get_db_manager().get_session()
-
-
 @contextmanager
 def db_session() -> Generator[Session, None, None]:
     """Context manager برای session دیتابیس"""
-    with get_db_manager().session_scope() as session:
+    with get_db_manager()._session_scope() as session:
         yield session

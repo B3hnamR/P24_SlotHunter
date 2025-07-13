@@ -3,6 +3,7 @@
 فایل اصلی P24_SlotHunter - نسخه حل شده
 """
 import asyncio
+import logging
 import signal
 import sys
 from pathlib import Path
@@ -90,16 +91,22 @@ class SlotHunter:
         
         self.running = True
         
-        # شروع همزمان ربات و نظارت
-        await asyncio.gather(
-            self.telegram_bot.start_polling(),
-            self.monitor_loop()
-        )
-    
+        # شروع ربات تلگرام
+        self.running = True
+        self.logger.info("✅ ربات تلگرام در حال اجرا است...")
+        self.logger.info("🕒 وظایف بررسی نوبت‌ها توسط Celery در پس‌زمینه مدیریت می‌شود.")
+        self.logger.info("برای مشاهده لاگ‌های Celery، دستور `celery -A src.celery_app worker -l info` را اجرا کنید.")
+        self.logger.info("برای اجرای Celery Beat، دستور `celery -A src.celery_app beat -l info` را اجرا کنید.")
+
+        # این حلقه فقط برای زنده نگه داشتن برنامه است
+        while self.running:
+            await asyncio.sleep(1)
+
     async def _load_doctors_to_db(self):
         """بارگذاری دکترها در دی��ابیس"""
         try:
-            config_doctors = self.config.get_doctors()
+            doctors_config = self.config.get_doctors_config()
+            config_doctors = [Doctor(**doc_config) for doc_config in doctors_config]
             
             with db_session() as session:
                 for doctor in config_doctors:
@@ -139,86 +146,6 @@ class SlotHunter:
         except Exception as e:
             self.logger.error(f"❌ خطا در بارگذاری دکترها: {e}")
     
-    async def monitor_loop(self):
-        """حلقه اصلی نظارت"""
-        while self.running:
-            try:
-                # دریافت اطلاعات دکترهای فعال
-                doctor_data_list = []
-                with db_session() as session:
-                    active_doctors = session.query(DBDoctor).filter(DBDoctor.is_active == True).all()
-                    
-                    # کپی کردن اطلاعات دکترها خارج از session
-                    for doctor in active_doctors:
-                        doctor_data = {
-                            'id': doctor.id,
-                            'name': doctor.name,
-                            'slug': doctor.slug,
-                            'center_id': doctor.center_id,
-                            'service_id': doctor.service_id,
-                            'user_center_id': doctor.user_center_id,
-                            'terminal_id': doctor.terminal_id,
-                            'specialty': doctor.specialty,
-                            'center_name': doctor.center_name,
-                            'center_address': doctor.center_address,
-                            'center_phone': doctor.center_phone
-                        }
-                        doctor_data_list.append(doctor_data)
-                
-                if doctor_data_list:
-                    self.logger.info(f"🔍 شروع دور جدید بررسی {len(doctor_data_list)} دکتر...")
-                    
-                    # بررسی همه دکترها
-                    for doctor_data in doctor_data_list:
-                        await self.check_doctor_data(doctor_data)
-                else:
-                    self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
-                
-                # بارگذاری مجدد کانفیگ برای دریافت تغییرات احتمالی
-                self.config.reload()
-
-                # صبر تا دور بعدی
-                self.logger.info(f"⏰ صبر {self.config.check_interval} ثانیه تا دور بعدی...")
-                await asyncio.sleep(self.config.check_interval)
-                
-            except KeyboardInterrupt:
-                self.logger.info("⏹️ دریافت سیگنال توقف...")
-                break
-            except Exception as e:
-                self.logger.error(f"❌ خطا در حلقه نظارت: {e}")
-                await asyncio.sleep(60)  # صبر بیشتر در صورت خطا
-    
-    async def check_doctor_data(self, doctor_data):
-        """بررسی نوبت‌های یک دکتر با استفاده از data dictionary"""
-        try:
-            # ایجاد SimpleDoctor object
-            simple_doctor = SimpleDoctor(doctor_data)
-            
-            api = PazireshAPI(simple_doctor, timeout=self.config.api_timeout)
-            appointments = api.get_available_appointments(days_ahead=self.config.days_ahead)
-            
-            if appointments:
-                self.logger.info(f"🎯 {len(appointments)} نوبت برای {simple_doctor.name} پیدا شد!")
-                
-                # نمایش در لاگ
-                for apt in appointments[:3]:
-                    self.logger.info(f"  ⏰ {apt.time_str}")
-                
-                await self.notify_appointments(simple_doctor, appointments)
-            else:
-                self.logger.debug(f"📅 هیچ نوبتی برای {simple_doctor.name} موجود نیست")
-                
-        except Exception as e:
-            self.logger.error(f"❌ خطا در بررسی {doctor_data['name']}: {e}")
-    
-    async def notify_appointments(self, doctor, appointments):
-        """اطلاع‌رسانی نوبت‌های جدید"""
-        try:
-            if self.telegram_bot:
-                await self.telegram_bot.send_appointment_alert(doctor, appointments)
-                
-        except Exception as e:
-            self.logger.error(f"❌ خطا در اطلاع‌رسانی: {e}")
     
     async def stop(self):
         """توقف نوبت‌یاب"""
