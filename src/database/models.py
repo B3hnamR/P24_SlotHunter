@@ -44,19 +44,19 @@ class Doctor(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     slug = Column(String(200), unique=True, nullable=False, index=True)
-    center_id = Column(String(100), nullable=False)
-    service_id = Column(String(100), nullable=False)
-    user_center_id = Column(String(100), nullable=False)
-    terminal_id = Column(String(100), nullable=False)
-    specialty = Column(String(100))
-    center_name = Column(String(200))
-    center_address = Column(Text)
-    center_phone = Column(String(20))
+    doctor_id = Column(String(100), nullable=False)  # شناسه دکتر در پذیرش24
+    provider_id = Column(String(100))  # شناسه ارائه‌دهنده
+    user_id = Column(String(100))  # شناسه کاربر دکتر
+    server_id = Column(Integer, default=1)  # شناسه سرور
+    specialty = Column(String(200))  # تخصص
+    biography = Column(Text)  # بیوگرافی
+    image_url = Column(String(500))  # تصویر دکتر
     is_active = Column(Boolean, default=True)
     last_checked = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # روابط
+    centers = relationship("DoctorCenter", back_populates="doctor", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="doctor", cascade="all, delete-orphan")
     appointment_logs = relationship("AppointmentLog", back_populates="doctor", cascade="all, delete-orphan")
     
@@ -67,6 +67,50 @@ class Doctor(Base):
     def subscription_count(self):
         """تعداد مشترکین فعال"""
         return len([sub for sub in self.subscriptions if sub.is_active])
+
+
+class DoctorCenter(Base):
+    """مدل مراکز درمانی دکتر"""
+    __tablename__ = 'doctor_centers'
+    
+    id = Column(Integer, primary_key=True)
+    doctor_id = Column(Integer, ForeignKey('doctors.id'), nullable=False)
+    center_id = Column(String(100), nullable=False)
+    center_name = Column(String(200), nullable=False)
+    center_type = Column(String(50))  # مطب، بیمارستان، کلینیک
+    center_address = Column(Text)
+    center_phone = Column(String(20))
+    user_center_id = Column(String(100), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # روابط
+    doctor = relationship("Doctor", back_populates="centers")
+    services = relationship("DoctorService", back_populates="center", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<DoctorCenter(center_name={self.center_name}, center_id={self.center_id})>"
+
+
+class DoctorService(Base):
+    """مدل سرویس‌های دکتر در هر مرکز"""
+    __tablename__ = 'doctor_services'
+    
+    id = Column(Integer, primary_key=True)
+    center_id = Column(Integer, ForeignKey('doctor_centers.id'), nullable=False)
+    service_id = Column(String(100), nullable=False)
+    service_name = Column(String(100), nullable=False)  # ویزیت، مشاوره آنلاین، etc.
+    user_center_id = Column(String(100), nullable=False)
+    price = Column(Integer, default=0)  # قیمت به تومان
+    duration = Column(String(20))  # مدت زمان ویزیت
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # روابط
+    center = relationship("DoctorCenter", back_populates="services")
+    
+    def __repr__(self):
+        return f"<DoctorService(service_name={self.service_name}, service_id={self.service_id})>"
 
 
 class Subscription(Base):

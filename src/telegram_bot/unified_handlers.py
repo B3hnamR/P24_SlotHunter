@@ -1,25 +1,30 @@
 """
-Simple Telegram Handlers - فقط API، بدون Web Scraping
+Enhanced Telegram Handlers - شامل مدیریت دکترها
 """
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 from datetime import datetime
 
-from src.database.models import User, Doctor, Subscription
+from src.database.models import User, Doctor, Subscription, DoctorCenter, DoctorService
 from src.telegram_bot.messages import MessageFormatter
+from src.telegram_bot.doctor_handlers import DoctorHandlers
+from src.api.doctor_manager import DoctorManager
 from src.utils.logger import get_logger
 
-logger = get_logger("SimpleHandlers")
+logger = get_logger("EnhancedHandlers")
 
 
 class UnifiedTelegramHandlers:
-    """کلاس ساده handlers تلگرام - فقط API"""
+    """کلاس پیشرفته handlers تلگرام - شامل مدیریت دکترها"""
     
     def __init__(self, db_manager):
         self.db_manager = db_manager
+        self.doctor_handlers = DoctorHandlers(db_manager)
+        self.doctor_manager = DoctorManager(db_manager)
     
     # ==================== Command Handlers ====================
     
@@ -84,7 +89,8 @@ class UnifiedTelegramHandlers:
             # منوی اصلی - فقط قابلیت‌های اصلی
             keyboard = [
                 [InlineKeyboardButton("👨‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
-                [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")]
+                [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+                [InlineKeyboardButton("🆕 اضافه کردن دکتر", callback_data="add_doctor")]
             ]
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -183,6 +189,9 @@ class UnifiedTelegramHandlers:
                 await self._show_doctors_list(update.message)
             elif text == "📝 اشتراک‌ها":
                 await self._show_subscriptions(update.message, user_id)
+            elif self._is_doctor_url(text):
+                # اگر پیام شبیه URL دکتر است، سعی کن اضافه کنی
+                await self._handle_doctor_url(update.message, text, user_id)
             else:
                 # پیام پیش‌فرض
                 await update.message.reply_text(
@@ -215,6 +224,16 @@ class UnifiedTelegramHandlers:
                 await self._callback_subscribe(query, data, user_id)
             elif data.startswith("unsubscribe_"):
                 await self._callback_unsubscribe(query, data, user_id)
+            elif data == "add_doctor":
+                await self._callback_add_doctor(query)
+            elif data.startswith("check_appointments_"):
+                await self.doctor_handlers.check_doctor_appointments(update, context)
+            elif data.startswith("quick_reserve_"):
+                await self.doctor_handlers.quick_reserve_placeholder(update, context)
+            elif data.startswith("refresh_doctor_"):
+                await self._callback_refresh_doctor(query, data)
+            elif data.startswith("delete_doctor_"):
+                await self._callback_delete_doctor(query, data)
             elif data == "back_to_main":
                 await self._callback_back_to_main(query, user_id)
             else:
@@ -644,11 +663,120 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             logger.error(f"❌ خطا در لغو اشتراک: {e}")
             await query.edit_message_text(f"❌ خطا: {str(e)}")
     
+    async def _callback_add_doctor(self, query):
+        """callback اضافه کردن دکتر"""
+        text = """
+🆕 **اضافه کردن دکتر جدید**
+
+لطفاً لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید.
+
+📋 **فرمت‌های قابل قبول:**
+
+1️⃣ **لینک کامل:**
+`https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/`
+
+2️⃣ **لینک کوتاه:**
+`dr/دکتر-نام-خانوادگی-0/`
+
+3️⃣ **فقط slug:**
+`دکتر-نام-خانوادگی-0`
+
+💡 **نکته:** ربات تمام اطلاعات مورد نیاز را از صفحه دکتر استخراج می‌کند.
+
+🔄 **برای ادامه:** لینک دکتر را در پیام بعدی ارسال کنید
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("❌ لغو", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=reply_markup
+        )
+    
+    async def _callback_refresh_doctor(self, query, data):
+        """callback به‌روزرسانی دکتر"""
+        try:
+            doctor_id = int(data.split("_")[-1])
+            
+            await query.edit_message_text(
+                "🔄 **در حال به‌روزرسانی اطلاعات دکتر...**\n\nلطفاً صبر کنید...",
+                parse_mode='Markdown'
+            )
+            
+            success, message = await self.doctor_manager.refresh_doctor_data(doctor_id)
+            
+            if success:
+                text = f"✅ **به‌روزرسانی موفق!**\n\n{message}"
+                keyboard = [
+                    [InlineKeyboardButton("👨‍⚕️ مشاهده اطلاعات", callback_data=f"doctor_info_{doctor_id}")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
+                ]
+            else:
+                text = f"❌ **خطا در به‌روزرسانی**\n\n{message}"
+                keyboard = [
+                    [InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"refresh_doctor_{doctor_id}")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
+                ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(text, parse_mode='Markdown', reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در به‌روزرسانی دکتر: {e}")
+            await query.edit_message_text(f"❌ خطا: {str(e)}")
+    
+    async def _callback_delete_doctor(self, query, data):
+        """callback حذف دکتر"""
+        try:
+            doctor_id = int(data.split("_")[-1])
+            
+            # دریافت اطلاعات دکتر
+            doctor = await self.doctor_manager.get_doctor_with_details(doctor_id)
+            if not doctor:
+                await query.edit_message_text("❌ دکتر یافت نشد.")
+                return
+            
+            text = f"""
+⚠️ **تأیید حذف دکتر**
+
+آیا مطمئن هستید که می‌خواهید دکتر **{doctor.name}** را حذف کنید؟
+
+🔴 **توجه:**
+• این عمل قابل بازگشت نیست
+• تمام اشتراک‌های مربوط به این دکتر لغو می‌شود
+• اطلاعات دکتر از سیستم حذف می‌شود
+
+👥 **مشترکین فعال:** {doctor.subscription_count} نفر
+            """
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ بله، حذف کن", callback_data=f"confirm_delete_{doctor_id}"),
+                    InlineKeyboardButton("❌ لغو", callback_data=f"doctor_info_{doctor_id}")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در حذف دکتر: {e}")
+            await query.edit_message_text(f"❌ خطا: {str(e)}")
+    
     async def _callback_back_to_main(self, query, user_id):
         """callback بازگشت به منوی اصلی"""
         keyboard = [
             [InlineKeyboardButton("👨‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
-            [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")]
+            [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+            [InlineKeyboardButton("🆕 اضافه کردن دکتر", callback_data="add_doctor")]
         ]
         
         text = """
