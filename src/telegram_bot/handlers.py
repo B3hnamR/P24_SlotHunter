@@ -17,6 +17,9 @@ logger = get_logger("TelegramHandlers")
 class TelegramHandlers:
     """کلاس handler های تلگرام"""
     
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
+    
     @staticmethod
     async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """دستور /start"""
