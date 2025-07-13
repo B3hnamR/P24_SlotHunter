@@ -2,7 +2,7 @@
 
 # P24_SlotHunter Professional Server Management Script
 # Complete automated server management for P24 appointment hunter
-# Version: 2.0 - Enhanced with auto-setup and intelligent management
+# Version: 3.0 - API-Only Architecture (No Web Scraping)
 
 set -uo pipefail  # Exit on undefined vars, pipe failures (but not on command errors)
 
@@ -19,7 +19,6 @@ DB_FILE="$PROJECT_DIR/data/slothunter.db"
 REQUIREMENTS_FILE="$PROJECT_DIR/requirements.txt"
 MAIN_SCRIPT="$PROJECT_DIR/src/main.py"
 SERVICE_NAME="slothunter"
-BACKUP_DIR="$PROJECT_DIR/backups"
 
 # System detection
 DISTRO=""
@@ -41,10 +40,10 @@ show_banner() {
     clear
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                    🎯 P24_SlotHunter v2.0                   ║"
+    echo "║                    🎯 P24_SlotHunter v3.0                   ║"
     echo "║                Professional Server Manager                   ║"
     echo "║                                                              ║"
-    echo "║          Complete P24 Appointment Hunter System             ║"
+    echo "║          API-Only P24 Appointment Hunter System             ║"
     echo "║              Auto-Setup & Intelligent Management            ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -169,12 +168,14 @@ setup_virtual_environment() {
     
     # Install requirements if file exists
     if [ -f "$REQUIREMENTS_FILE" ]; then
-        log_message "INFO" "Installing Python dependencies..."
+        log_message "INFO" "Installing Python dependencies from requirements.txt..."
         pip install -r "$REQUIREMENTS_FILE"
         log_message "SUCCESS" "Python dependencies installed"
     else
-        log_message "WARN" "Requirements file not found. Installing basic dependencies..."
-        pip install requests python-telegram-bot sqlalchemy pyyaml python-dotenv beautifulsoup4
+        log_message "WARN" "Requirements file not found. Installing core dependencies..."
+        # API-Only dependencies (no web scraping)
+        pip install requests python-telegram-bot sqlalchemy pyyaml python-dotenv httpx aiosqlite alembic pydantic psutil
+        log_message "SUCCESS" "Core dependencies installed"
     fi
     
     deactivate
@@ -185,7 +186,7 @@ create_project_structure() {
     log_message "INFO" "Creating project directory structure..."
     
     # Create necessary directories
-    local dirs=("logs" "data" "config" "backups" "src")
+    local dirs=("logs" "data" "config" "src")
     for dir in "${dirs[@]}"; do
         if [ ! -d "$PROJECT_DIR/$dir" ]; then
             mkdir -p "$PROJECT_DIR/$dir"
@@ -197,7 +198,7 @@ create_project_structure() {
     if [ ! -f "$CONFIG_FILE" ]; then
         log_message "INFO" "Creating default configuration file..."
         cat > "$CONFIG_FILE" << 'EOF'
-# P24_SlotHunter Configuration
+# P24_SlotHunter Configuration - API Only
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}
   admin_chat_id: ${ADMIN_CHAT_ID}
@@ -214,9 +215,25 @@ logging:
   max_size: 10MB
   backup_count: 5
 
+# Doctors must be added here with complete API information
+# Example:
+# doctors:
+#   - name: "دکتر نمونه"
+#     slug: "doctor-example"
+#     center_id: "12345"
+#     service_id: "67890"
+#     user_center_id: "11111"
+#     terminal_id: "22222"
+#     specialty: "قلب و عروق"
+#     center_name: "مطب دکتر"
+#     center_address: "تهران"
+#     center_phone: "021-12345678"
+#     is_active: true
+
 doctors: []
 EOF
         log_message "SUCCESS" "Default configuration file created"
+        log_message "INFO" "Add doctors to config/config.yaml with complete API information"
     fi
 }
 
@@ -404,9 +421,12 @@ restart_service() {
         if [ "$local_commit" != "$remote_commit" ]; then
             log_message "INFO" "Updates available, pulling latest changes..."
             
-            # Backup current .env
+            # Backup current .env and config
             if [ -f "$ENV_FILE" ]; then
                 cp "$ENV_FILE" "$ENV_FILE.backup"
+            fi
+            if [ -f "$CONFIG_FILE" ]; then
+                cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
             fi
             
             # Pull updates
@@ -419,6 +439,16 @@ restart_service() {
                     mv "$ENV_FILE.backup" "$ENV_FILE"
                 else
                     rm -f "$ENV_FILE.backup"
+                fi
+            fi
+            
+            # Restore config if it was overwritten
+            if [ -f "$CONFIG_FILE.backup" ]; then
+                if [ -f "$CONFIG_FILE" ] && ! cmp -s "$CONFIG_FILE" "$CONFIG_FILE.backup"; then
+                    log_message "INFO" "Restoring configuration file..."
+                    mv "$CONFIG_FILE.backup" "$CONFIG_FILE"
+                else
+                    rm -f "$CONFIG_FILE.backup"
                 fi
             fi
             
@@ -485,7 +515,8 @@ full_system_setup() {
         echo -e "${YELLOW}1. Edit $ENV_FILE${NC}"
         echo -e "${YELLOW}2. Set your TELEGRAM_BOT_TOKEN (get from @BotFather)${NC}"
         echo -e "${YELLOW}3. Set your ADMIN_CHAT_ID (get from @userinfobot)${NC}"
-        echo -e "${YELLOW}4. Run this script again to start the service${NC}"
+        echo -e "${YELLOW}4. Add doctors to $CONFIG_FILE with complete API information${NC}"
+        echo -e "${YELLOW}5. Run this script again to start the service${NC}"
         echo ""
     fi
 }
@@ -508,7 +539,7 @@ setup_systemd_service() {
     
     cat > "$service_file" << EOF
 [Unit]
-Description=P24 SlotHunter Bot
+Description=P24 SlotHunter Bot - API Only
 After=network.target
 Wants=network.target
 
@@ -573,10 +604,10 @@ validate_prerequisites() {
         errors=$((errors + 1))
     fi
     
-    # Check Python dependencies
+    # Check Python dependencies (API-only)
     if [ -f "$VENV_DIR/bin/python" ]; then
         local missing_deps=()
-        local required_deps=("requests" "telegram" "sqlalchemy" "yaml")
+        local required_deps=("requests" "telegram" "sqlalchemy" "yaml" "httpx")
         
         for dep in "${required_deps[@]}"; do
             if ! "$VENV_DIR/bin/python" -c "import $dep" 2>/dev/null; then
@@ -591,7 +622,7 @@ validate_prerequisites() {
     fi
     
     # Create missing directories
-    local dirs=("logs" "data" "config" "backups")
+    local dirs=("logs" "data" "config")
     for dir in "${dirs[@]}"; do
         if [ ! -d "$PROJECT_DIR/$dir" ]; then
             mkdir -p "$PROJECT_DIR/$dir"
@@ -747,6 +778,8 @@ show_stats() {
         echo -e "  📝 Git commit: ${GREEN}$git_commit${NC}"
     fi
     
+    echo -e "  🔧 Architecture: ${GREEN}API-Only (No Web Scraping)${NC}"
+    
     echo ""
     echo -e "${CYAN}════════════════════════════════════════${NC}"
     echo -e "${YELLOW}Press Enter to continue...${NC}"
@@ -800,6 +833,16 @@ health_check() {
             echo -e "${GREEN}✅ Log file size is normal (${log_size_mb}MB)${NC}"
         else
             echo -e "${YELLOW}⚠️ Log file is large (${log_size_mb}MB)${NC}"
+        fi
+    fi
+    
+    # Check API dependencies
+    if [ -f "$VENV_DIR/bin/python" ]; then
+        if "$VENV_DIR/bin/python" -c "import httpx, requests" 2>/dev/null; then
+            echo -e "${GREEN}✅ API dependencies are available${NC}"
+        else
+            echo -e "${RED}❌ API dependencies missing${NC}"
+            issues=$((issues + 1))
         fi
     fi
     
@@ -874,6 +917,12 @@ EOF
     
     echo ""
     echo -e "${GREEN}✅ Configuration saved successfully!${NC}"
+    echo ""
+    echo -e "${YELLOW}📋 Next Steps:${NC}"
+    echo -e "${YELLOW}1. Add doctors to $CONFIG_FILE with complete API information${NC}"
+    echo -e "${YELLOW}2. Each doctor needs: center_id, service_id, user_center_id, terminal_id${NC}"
+    echo -e "${YELLOW}3. Use the API to get these values from Paziresh24${NC}"
+    echo ""
     
     # Validate new configuration
     if validate_environment > /dev/null 2>&1; then
@@ -973,7 +1022,7 @@ if [ $# -gt 0 ]; then
         config) config_wizard ;;
         update) update_system ;;
         *) 
-            echo "P24_SlotHunter Server Manager v2.0"
+            echo "P24_SlotHunter Server Manager v3.0 - API Only"
             echo ""
             echo "Usage: $0 [command]"
             echo ""
@@ -991,6 +1040,8 @@ if [ $# -gt 0 ]; then
             echo "  update    - Update system and dependencies"
             echo ""
             echo "Run without arguments for interactive menu"
+            echo ""
+            echo "Note: This version uses API-only architecture (no web scraping)"
             exit 1
             ;;
     esac
@@ -1014,21 +1065,6 @@ else
         full_system_setup
         echo -e "${YELLOW}Press Enter to continue to main menu...${NC}"
         read
-    else
-        # Check dependencies even if venv exists
-        echo -e "${BLUE}🔍 Checking dependencies...${NC}"
-        if [ -f "check_dependencies.py" ]; then
-            source "$VENV_DIR/bin/activate" 2>/dev/null || true
-            python check_dependencies.py
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}❌ Dependency check failed${NC}"
-                echo -e "${YELLOW}Running setup to fix issues...${NC}"
-                full_system_setup
-                echo -e "${YELLOW}Press Enter to continue...${NC}"
-                read
-            fi
-            deactivate 2>/dev/null || true
-        fi
     fi
     
     # Run main menu
