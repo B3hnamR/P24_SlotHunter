@@ -169,7 +169,7 @@ class SlotHunter:
     async def check_doctor(self, doctor: DBDoctor):
         """بررسی نوبت‌های یک دکتر"""
         try:
-            api = PazireshAPI(doctor, client=self.http_client)
+            api = PazireshAPI(doctor, client=self.http_client, base_url=self.config.api_base_url)
             appointments = await api.get_available_appointments(days_ahead=self.config.days_ahead)
             
             if appointments:

@@ -8,16 +8,13 @@ from datetime import datetime
 
 from .models import Doctor, Appointment, APIResponse
 
-
-from src.utils.config import Config
-
 class PazireshAPI:
     """کلاینت API پذیرش۲۴ (async)"""
 
-    def __init__(self, doctor: Doctor, timeout: int = 10, client: httpx.AsyncClient = None):
+    def __init__(self, doctor: Doctor, timeout: int = 10, client: httpx.AsyncClient = None, base_url: str = None):
         self.doctor = doctor
         self.timeout = timeout
-        self.BASE_URL = Config().api_base_url
+        self.BASE_URL = base_url or "https://apigw.paziresh24.com/booking/v2"
         self.client = client
         self.logger = logging.getLogger(f"PazireshAPI.{doctor.slug}")
         self.headers = {

@@ -8,8 +8,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
-from src.api.models import Doctor
+from typing import TYPE_CHECKING
 from src.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.api.models import Doctor
 
 
 class DatabaseConfig(BaseModel):
@@ -40,7 +43,7 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
     logging: LoggingConfig = LoggingConfig()
-    doctors: List[Doctor] = []
+    doctors: List[Dict[str, Any]] = []
 
 class Config:
     """کلاس مدیریت تنظیمات"""
@@ -157,9 +160,16 @@ class Config:
     def api_base_url(self) -> str:
         return self._config.api.base_url
     
-    def get_doctors(self) -> List[Doctor]:
+    def get_doctors(self) -> List["Doctor"]:
         """دریافت لیست دکترها"""
-        return self._config.doctors
+        from src.api.models import Doctor
+        doctors = []
+        for doctor_data in self._config.doctors:
+            if isinstance(doctor_data, dict):
+                doctors.append(Doctor(**doctor_data))
+            else:
+                doctors.append(doctor_data)
+        return doctors
     
     def reload(self):
         """بارگذاری مجدد تنظیمات"""
