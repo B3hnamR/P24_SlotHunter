@@ -57,12 +57,14 @@ class Config:
     def _load_and_validate_config(self) -> AppConfig:
         """بارگذاری و اعتبارسنجی تنظیمات"""
         config_data = self._load_config_from_file()
+        # پردازش متغیرهای محیطی
+        config_data = self._replace_env_vars(config_data)
         try:
             return AppConfig(**config_data)
         except ValidationError as e:
             self.logger.error(f"❌ خطای اعتبارسنجی تنظیمات: {e}")
             # در صورت خطا، از تنظیمات پیش‌فرض استفاده کن
-            return AppConfig()
+            return AppConfig(**self._get_default_config())
 
     def _load_config_from_file(self) -> Dict[str, Any]:
         """بارگذاری تنظیمات از فایل"""

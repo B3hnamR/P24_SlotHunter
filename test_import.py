@@ -27,6 +27,11 @@ try:
     config = Config()
     print("✅ Config instance created successfully")
     
+    # تست تنظیمات
+    print(f"📱 Bot Token: {'✅ Set' if config.telegram_bot_token else '❌ Not set'}")
+    print(f"👤 Admin Chat ID: {config.admin_chat_id}")
+    print(f"⏱️ Check Interval: {config.check_interval}s")
+    
     print("\n🎉 All imports successful! Circular import issue resolved.")
     
 except ImportError as e:
