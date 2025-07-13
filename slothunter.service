@@ -1,0 +1,25 @@
+[Unit]
+Description=P24 SlotHunter Bot
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/project
+Environment=PATH=/path/to/project/venv/bin
+ExecStart=/path/to/project/venv/bin/python src/main.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+
+# Healthcheck (اختیاری - نیاز به اسکریپت healthcheck.sh)
+# ExecStartPre=/path/to/project/healthcheck.sh
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=slothunter
+
+[Install]
+WantedBy=multi-user.target

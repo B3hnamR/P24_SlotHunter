@@ -33,12 +33,12 @@ cd P24_SlotHunter
 
 ### 2. راه‌اندازی کامل (یک دستور!)
 ```bash
-python manager.py setup
+./server_manager.sh setup
 ```
 
 ### 3. اجرای پروژه
 ```bash
-python manager.py run
+./server_manager.sh start
 ```
 
 ## 🎛️ مدیریت پروژه
@@ -91,15 +91,10 @@ python manager.py run
 # - پشتیبان‌گیری و بازیابی
 ```
 
-### 📋 **Python Manager (پیشرفته):**
+### 📋 **مدیریت مستقیم:**
 ```bash
-# برای تنظیمات پیشرفته و توسعه
-python manager.py setup      # راه‌اندازی کامل
-python manager.py run        # اجرای کامل
-python manager.py config     # تنظیم ربات تلگرام
-python manager.py status     # وضعیت پروژه
-python manager.py test       # تست کامل
-python manager.py clean      # پاک‌سازی
+# اجرای مستقیم پروژه
+python src/main.py           # اجرای مستقیم
 ```
 
 ## ⚙️ تنظیمات

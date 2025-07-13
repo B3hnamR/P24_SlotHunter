@@ -92,3 +92,29 @@ def _parse_size(size_str: str) -> int:
 def get_logger(name: str) -> logging.Logger:
     """دریافت logger موجود"""
     return logging.getLogger(f"SlotHunter.{name}")
+
+# اطلاع‌رسانی خطاهای بحرانی به ادمین تلگرام
+import os
+import asyncio
+import httpx
+
+def _get_admin_telegram_config():
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("ADMIN_CHAT_ID")
+    return token, chat_id
+
+async def notify_admin_critical_error(message: str):
+    token, chat_id = _get_admin_telegram_config()
+    if not token or not chat_id or "your_" in token or "your_" in chat_id:
+        return  # تنظیم نشده
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    data = {
+        "chat_id": chat_id,
+        "text": f"🚨 خطای بحرانی:\n{message}",
+        "parse_mode": "Markdown"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(url, data=data)
+    except Exception:
+        pass  # در صورت خطا، سکوت کن تا حلقه خطا ایجاد نشود

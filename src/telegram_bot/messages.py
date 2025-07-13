@@ -7,6 +7,14 @@ from datetime import datetime
 from src.api.models import Doctor, Appointment
 
 
+def escape_markdown(text: str) -> str:
+    """Escape کاراکترهای حساس Markdown برای تلگرام"""
+    if not isinstance(text, str):
+        return text
+    for ch in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
+        text = text.replace(ch, f'\{ch}')
+    return text
+
 class MessageFormatter:
     """کلاس فرمت کردن پیام‌ها"""
     
@@ -78,24 +86,24 @@ class MessageFormatter:
     
     @staticmethod
     def doctor_info_message(doctor: Doctor) -> str:
-        """پیام اطلاعات دکتر"""
+        """پیام اطلاعات دکتر (با escape)"""
         return f"""
-👨‍⚕️ **{doctor.name}**
+👨‍⚕️ **{escape_markdown(doctor.name)}**
 
-🏥 **تخصص:** {doctor.specialty}
-🏢 **مرکز:** {doctor.center_name}
-📍 **آدرس:** {doctor.center_address}
-📞 **تلفن:** {doctor.center_phone}
+🏥 **تخصص:** {escape_markdown(doctor.specialty)}
+🏢 **مرکز:** {escape_markdown(doctor.center_name)}
+📍 **آدرس:** {escape_markdown(doctor.center_address)}
+📞 **تلفن:** {escape_markdown(doctor.center_phone)}
 
 🔗 **لینک مستقیم:**
-https://www.paziresh24.com/dr/{doctor.slug}/
+https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
 
 💡 برای اشتراک در این دکتر، دکمه زیر را فشار دهید.
         """
     
     @staticmethod
     def appointment_alert_message(doctor: Doctor, appointments: List[Appointment]) -> str:
-        """پیام اطلاع‌رسانی نوبت جدید"""
+        """پیام اطلاع‌رسانی نوبت جدید (با escape)"""
         if not appointments:
             return ""
         
@@ -110,9 +118,9 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         message = f"""
 🎯 **نوبت خالی پیدا شد!**
 
-👨‍⚕️ **دکتر:** {doctor.name}
-🏥 **مرکز:** {doctor.center_name}
-📍 **آدرس:** {doctor.center_address}
+👨‍⚕️ **دکتر:** {escape_markdown(doctor.name)}
+🏥 **مرکز:** {escape_markdown(doctor.center_name)}
+📍 **آدرس:** {escape_markdown(doctor.center_address)}
 
 📅 **نوبت‌های موجود:**
         """
@@ -131,7 +139,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         
         message += f"""
 🔗 **لینک رزرو:**
-https://www.paziresh24.com/dr/{doctor.slug}/
+https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
 
 ⚡ **سریع عمل کنید! نوبت‌ها ممکن است زود تمام شوند.**
 
@@ -190,25 +198,14 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         return message
     
     @staticmethod
-    def error_message(error_text: str = "یک خطای پیش‌بینی نشده رخ داده است.") -> str:
-        """پیام خطای عمومی"""
+    def error_message(error_text: str = "خطای غیرمنتظره") -> str:
+        """پیام خطا"""
         return f"""
 ❌ **خطا**
 
 {error_text}
 
-🔄 لطفاً دوباره تلاش کنید. در صورت تکرار مشکل، با پشتیبانی تماس بگیرید.
-        """
-
-    @staticmethod
-    def db_error_message() -> str:
-        """پیام خطای دیتابیس"""
-        return """
-❌ **خطای سرور**
-
-مشکلی در ارتباط با دیتابیس پیش آمده است. تیم فنی در حال بررسی مشکل است.
-
-🙏 لطفاً چند دقیقه دیگر دوباره تلاش کنید.
+🔄 لطفاً دوباره تلاش کنید یا با ادمین تماس بگیرید.
         """
     
     @staticmethod
@@ -227,4 +224,53 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 
 💾 **حافظه:** {stats.get('memory_usage', 'نامشخص')}
 🌐 **شبکه:** {stats.get('network_status', 'متصل')}
+        """
+
+    @staticmethod
+    def access_denied_message() -> str:
+        """پیام عدم دسترسی"""
+        return "❌ شما دسترسی ادمین ندارید."
+
+    @staticmethod
+    def admin_stats_message(stats: dict) -> str:
+        """پیام آمار ادمین"""
+        return f"""
+📊 **آمار سیستم P24_SlotHunter**
+
+👥 **کاربران فعال:** {stats.get('total_users', 0)}
+👨‍⚕️ **کل دکترها:** {stats.get('total_doctors', 0)}
+✅ **دکترهای فعال:** {stats.get('active_doctors', 0)}
+📝 **اشتراک‌های فعال:** {stats.get('total_subscriptions', 0)}
+🎯 **نوبت‌های پیدا شده امروز:** {stats.get('appointments_today', 0)}
+
+⏰ **آخرین بررسی:** در حال اجرا
+🔄 **وضعیت سیستم:** ف��ال
+        """
+
+    @staticmethod
+    def user_management_message(users: list) -> str:
+        """پیام مدیریت کاربران"""
+        user_list = "👥 **آخرین کاربران:**\n\n"
+        for i, user in enumerate(users, 1):
+            subscription_count = len([sub for sub in user.subscriptions if sub.is_active])
+            admin_badge = " 🔧" if user.is_admin else ""
+            user_list += f"{i}. {user.full_name}{admin_badge}\n"
+            user_list += f"   📱 ID: `{user.telegram_id}`\n"
+            user_list += f"   📝 اشتراک‌ها: {subscription_count}\n\n"
+        return user_list
+
+    @staticmethod
+    def access_settings_message() -> str:
+        """پیام تنظیمات دسترسی"""
+        return """
+🔒 **تنظیمات دسترسی**
+
+⚠️ **وضعیت فعلی:** ربات برای همه در دسترس است
+
+🔧 **برای محدود کردن دسترسی:**
+1. از منوی مدیریت سرور استفاده کنید
+2. گزینه "Access Control" را انتخاب کنید
+3. لیست کاربران مجاز را تنظیم کنید
+
+💡 **نکته:** تغییرات از طریق سرور اعمال می‌شود
         """

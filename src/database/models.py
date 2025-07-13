@@ -74,9 +74,9 @@ class Subscription(Base):
     __tablename__ = 'subscriptions'
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    doctor_id = Column(Integer, ForeignKey('doctors.id'), nullable=False, index=True)
-    is_active = Column(Boolean, default=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    doctor_id = Column(Integer, ForeignKey('doctors.id'), nullable=False)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -104,19 +104,3 @@ class AppointmentLog(Base):
     
     def __repr__(self):
         return f"<AppointmentLog(doctor_id={self.doctor_id}, date={self.appointment_date})>"
-
-
-class SystemLog(Base):
-    """لاگ سیستم"""
-    __tablename__ = 'system_logs'
-    
-    id = Column(Integer, primary_key=True)
-    level = Column(String(20), nullable=False)  # INFO, WARNING, ERROR
-    message = Column(Text, nullable=False)
-    module = Column(String(50))  # نام ماژول
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    doctor_id = Column(Integer, ForeignKey('doctors.id'), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<SystemLog(level={self.level}, module={self.module})>"

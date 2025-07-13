@@ -9,21 +9,17 @@ from telegram.ext import ContextTypes, ConversationHandler
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
+import hashlib
 
 from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription
-from src.telegram_bot.messages import MessageFormatter
 from src.utils.logger import get_logger
 from src.utils.config import Config
 
 logger = get_logger("TelegramAdminHandlers")
 
-from .constants import ConversationStates, AdminCallback
-
-# Define conversation states using the enum
-ADD_DOCTOR_LINK = ConversationStates.ADD_DOCTOR_LINK.value
-ADD_DOCTOR_CONFIRM = ConversationStates.ADD_DOCTOR_CONFIRM.value
-SET_CHECK_INTERVAL = ConversationStates.SET_CHECK_INTERVAL.value
+# States برای ConversationHandler
+ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL = range(3)
 
 
 class TelegramAdminHandlers:
@@ -63,20 +59,12 @@ class TelegramAdminHandlers:
             
             admin_text = "🔧 پنل مدیریت P24_SlotHunter\n\nانتخاب کنید:"
             
-            # اگر از callback query آمده، ویرایش کن، وگرنه پیام جدید بفرست
-            if update.callback_query:
-                await update.callback_query.edit_message_text(admin_text, reply_markup=reply_markup)
-            else:
-                await update.message.reply_text(admin_text, reply_markup=reply_markup)
+            await update.message.reply_text(admin_text, reply_markup=reply_markup)
             logger.info("Admin panel sent successfully")
             
         except Exception as e:
             logger.error(f"خطا در نمایش پنل ادمین: {e}")
-            error_message = "❌ خطا در بارگذاری پنل مدیریت."
-            if update.callback_query:
-                await update.callback_query.edit_message_text(error_message)
-            else:
-                await update.message.reply_text(error_message)
+            await update.message.reply_text("❌ خطا در بارگذاری پنل مدیریت.")
     
     @staticmethod
     async def start_add_doctor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,35 +103,93 @@ class TelegramAdminHandlers:
                 "https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/"
             )
             return ADD_DOCTOR_LINK
-
-        from src.api.parser import extract_doctor_info_from_url
-        from telegram.constants import ChatAction
-
-        await update.message.reply_text("در حال استخراج اطلاعات دکتر... لطفاً صبر کنید.")
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
         
-        doctor_info = extract_doctor_info_from_url(link)
+        # استخراج slug دکتر
+        slug = link.split('/dr/')[1].rstrip('/')
+        slug = urllib.parse.unquote(slug)
         
-        if not doctor_info:
+        if not slug:
             await update.message.reply_text(
                 "❌ نتوانستم اطلاعات دکتر را از لینک استخراج کنم.\n\n"
-                "لطفاً از صحت لینک مطمئن شوید و دوباره تلاش کنید."
+                "لطفاً لینک صحیح ارسال کنید."
             )
             return ADD_DOCTOR_LINK
+
+        # تلاش برای استخراج IDهای واقعی از HTML
+        center_id, service_id, user_center_id, terminal_id = None, None, None, None
+        try:
+            resp = requests.get(link, timeout=10)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                # مثال: فرض کنیم center_id در یک meta tag یا script وجود دارد
+                # این بخش باید با توجه به ساختار واقعی HTML پذیرش۲۴ تنظیم شود
+                for script in soup.find_all('script'):
+                    if script.string and 'center_id' in script.string:
+                        import re
+                        m = re.search(r'center_id["\']?\s*:\s*["\']?(\w+)["\']?', script.string)
+                        if m:
+                            center_id = m.group(1)
+                    if script.string and 'service_id' in script.string:
+                        import re
+                        m = re.search(r'service_id["\']?\s*:\s*["\']?(\w+)["\']?', script.string)
+                        if m:
+                            service_id = m.group(1)
+                    if script.string and 'user_center_id' in script.string:
+                        import re
+                        m = re.search(r'user_center_id["\']?\s*:\s*["\']?(\w+)["\']?', script.string)
+                        if m:
+                            user_center_id = m.group(1)
+                    if script.string and 'terminal_id' in script.string:
+                        import re
+                        m = re.search(r'terminal_id["\']?\s*:\s*["\']?(\w+)["\']?', script.string)
+                        if m:
+                            terminal_id = m.group(1)
+        except Exception as e:
+            logger.warning(f"استخراج ID واقعی از HTML با خطا مواجه شد: {e}")
+
+        # اگر هرکدام پیدا نشد، مقدار placeholder با هش و برچسب FAKE
+        def fake_id(label, slug):
+            return f"FAKE_{label}_" + hashlib.sha256(slug.encode()).hexdigest()[:8]
+        if not center_id:
+            center_id = fake_id('center', slug)
+        if not service_id:
+            service_id = fake_id('service', slug)
+        if not user_center_id:
+            user_center_id = fake_id('usercenter', slug)
+        if not terminal_id:
+            terminal_id = fake_id('terminal', slug)
+        # اگر هرکدام FAKE است، هشدار به ادمین
+        if any(x.startswith('FAKE_') for x in [center_id, service_id, user_center_id, terminal_id]):
+            await update.message.reply_text(
+                "⚠️ هشدار: برخی شناسه‌های فنی این دکتر به صورت FAKE تولید شده‌اند و ممکن است API کار نکند!\n"
+                "در صورت بروز مشکل، لینک را بررسی و به پشتیبانی اطلاع دهید."
+            )
+            logger.warning(f"دکتر جدید با شناسه FAKE اضافه شد: slug={slug}")
+
+        doctor_info = {
+            'name': f'دکتر از {slug}',
+            'slug': slug,
+            'specialty': 'نامشخص',
+            'center_name': 'نامشخص',
+            'center_address': 'نامشخص',
+            'center_phone': 'نامشخص',
+            'center_id': center_id,
+            'service_id': service_id,
+            'user_center_id': user_center_id,
+            'terminal_id': terminal_id
+        }
         
         context.user_data['doctor_info'] = doctor_info
         
         # نمایش اطلاعات برای تأیید
         confirm_text = f"""✅ اطلاعات دکتر:
 
-👨‍⚕️ نام: {doctor_info.get('name', 'نامشخص')}
-🏥 تخصص: {doctor_info.get('specialty', 'نامشخص')}
-🏢 مرکز: {doctor_info.get('center_name', 'نامشخص')}
+👨‍⚕️ نام: {doctor_info['name']}
+🏥 تخصص: {doctor_info['specialty']}
+🏢 مرکز: {doctor_info['center_name']}
 
 🔧 اطلاعات فنی:
-• Slug: {doctor_info.get('slug', 'نامشخص')}
-• Center ID: {doctor_info.get('center_id', 'نامشخص')}
-• Service ID: {doctor_info.get('service_id', 'نامشخص')}
+• Slug: {doctor_info['slug']}
 
 آیا می‌خواهید این دکتر را اضافه کنید؟"""
         
@@ -209,8 +255,11 @@ class TelegramAdminHandlers:
                 
                 logger.info(f"دکتر جدید توسط ادمین اضافه شد: {doctor_info['name']}")
                 
+        except ConnectionError as e:
+            logger.error(f"خطا در اتصال به دیتابیس هنگام افزودن دکتر: {e}")
+            await query.edit_message_text("❌ خطا در اتصال به دیتابیس. لطفاً دوباره تلاش کنید.")
         except Exception as e:
-            logger.error(f"خطا در افزودن دکتر: {e}")
+            logger.error(f"خطای غیرمنتظره در افزودن دکتر: {e}")
             await query.edit_message_text("❌ خطا در افزودن دکتر. لطفاً دوباره تلاش کنید.")
         
         return ConversationHandler.END
@@ -293,13 +342,10 @@ class TelegramAdminHandlers:
                 )
                 return SET_CHECK_INTERVAL
             
-            # ذخیره در دیتابیس یا فایل کانفیگ
-            config = Config()
-            config.set_check_interval(interval) # فرض بر اینکه این متد وجود دارد
-
             await update.message.reply_text(
                 f"✅ زمان بررسی به {interval} ثانیه تغییر کرد.\n\n"
-                f"این تغییر در دور بعدی نظارت اعمال خواهد شد."
+                f"⚠️ برای اعمال تغییرات، سیستم باید restart شود.\n\n"
+                f"🔄 برای بازگشت: /admin"
             )
             
             logger.info(f"زمان بررسی توسط ادمین تغییر کرد: {interval} ثانیه")

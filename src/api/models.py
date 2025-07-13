@@ -8,7 +8,7 @@ from typing import List, Optional
 
 @dataclass
 class Doctor:
-    """مدل اطلاعات دکتر"""
+    """مدل اطلاعات دکتر با اعتبارسنجی"""
     name: str
     slug: str
     center_id: str
@@ -20,6 +20,19 @@ class Doctor:
     center_address: str = ""
     center_phone: str = ""
     is_active: bool = True
+
+    def __post_init__(self):
+        required_fields = [
+            ('name', self.name),
+            ('slug', self.slug),
+            ('center_id', self.center_id),
+            ('service_id', self.service_id),
+            ('user_center_id', self.user_center_id),
+            ('terminal_id', self.terminal_id)
+        ]
+        for field, value in required_fields:
+            if not value or not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Doctor: مقدار '{field}' نباید خالی یا نامعتبر باشد.")
 
 
 @dataclass

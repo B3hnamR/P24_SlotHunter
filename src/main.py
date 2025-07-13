@@ -3,7 +3,6 @@
 فایل اصلی P24_SlotHunter - نسخه حل شده
 """
 import asyncio
-import logging
 import signal
 import sys
 from pathlib import Path
@@ -15,30 +14,19 @@ from src.utils.config import Config
 from src.utils.logger import setup_logger
 from src.api.paziresh_client import PazireshAPI
 from src.telegram_bot.bot import SlotHunterBot
-from src.database.database import init_database, db_session
+from src.database.database import db_session, DatabaseManager
 from src.database.models import Doctor as DBDoctor
+from src.utils.logger import notify_admin_critical_error
+from sqlalchemy import select, func
 
 
-class SimpleDoctor:
-    """کلاس ساده برای نگهداری اطلاعات دکتر بدون SQLAlchemy dependency"""
-    def __init__(self, data):
-        self.id = data['id']
-        self.name = data['name']
-        self.slug = data['slug']
-        self.center_id = data['center_id']
-        self.service_id = data['service_id']
-        self.user_center_id = data['user_center_id']
-        self.terminal_id = data['terminal_id']
-        self.specialty = data['specialty']
-        self.center_name = data['center_name']
-        self.center_address = data['center_address']
-        self.center_phone = data['center_phone']
-
+import httpx
 
 class SlotHunter:
     """کلاس اصلی نوبت‌یاب"""
     
-    def __init__(self):
+    def __init__(self, db_manager: DatabaseManager):
+        self.db_manager = db_manager
         self.config = Config()
         self.logger = setup_logger(
             level=self.config.log_level,
@@ -46,6 +34,7 @@ class SlotHunter:
         )
         self.running = False
         self.telegram_bot = None
+        self.http_client = None
         
     async def start(self):
         """شروع نوبت‌یاب"""
@@ -58,10 +47,11 @@ class SlotHunter:
         
         # راه‌اندازی دیتابیس
         try:
-            init_database()
+            await self.db_manager._setup_database()
             self.logger.info("✅ دیتابیس راه‌اندازی شد")
         except Exception as e:
             self.logger.error(f"❌ خطا در راه‌اندازی دیتابیس: {e}")
+            await notify_admin_critical_error(f"خطا در راه‌اندازی دیتابیس: {e}")
             return
         
         # بارگذاری دکترها در دیتابیس
@@ -69,18 +59,21 @@ class SlotHunter:
         
         # راه‌اندازی ربات تلگرام
         try:
-            self.telegram_bot = SlotHunterBot(self.config.telegram_bot_token)
+            self.telegram_bot = SlotHunterBot(self.config.telegram_bot_token, self.db_manager)
             await self.telegram_bot.initialize()
             self.logger.info("✅ ربات تلگرام راه‌اندازی شد")
         except Exception as e:
             self.logger.error(f"❌ خطا در راه‌اندازی ربات: {e}")
+            await notify_admin_critical_error(f"خطا در راه‌اندازی ربات: {e}")
             return
         
         # بررسی دکترها از دیتابیس
         try:
-            with db_session() as session:
-                db_doctors_count = session.query(DBDoctor).count()
-                active_doctors_count = session.query(DBDoctor).filter(DBDoctor.is_active == True).count()
+            async with db_session(self.db_manager) as session:
+                db_doctors_count = await session.scalar(select(func.count(DBDoctor.id)))
+                active_doctors_count = await session.scalar(
+                    select(func.count(DBDoctor.id)).filter(DBDoctor.is_active == True)
+                )
                 
                 if db_doctors_count == 0:
                     self.logger.warning("⚠️ هیچ دکتری در دیتابیس یافت نشد - ربات فقط برای مدیریت فعال است")
@@ -90,30 +83,27 @@ class SlotHunter:
             self.logger.error(f"❌ خطا در بررسی دکترها: {e}")
         
         self.running = True
+        self.http_client = httpx.AsyncClient(timeout=self.config.api_timeout)
         
-        # شروع ربات تلگرام
-        self.running = True
-        self.logger.info("✅ ربات تلگرام در حال اجرا است...")
-        self.logger.info("🕒 وظایف بررسی نوبت‌ها توسط Celery در پس‌زمینه مدیریت می‌شود.")
-        self.logger.info("برای مشاهده لاگ‌های Celery، دستور `celery -A src.celery_app worker -l info` را اجرا کنید.")
-        self.logger.info("برای اجرای Celery Beat، دستور `celery -A src.celery_app beat -l info` را اجرا کنید.")
-
-        # این حلقه فقط برای زنده نگه داشتن برنامه است
-        while self.running:
-            await asyncio.sleep(1)
-
-    async def _load_doctors_to_db(self):
-        """بارگذاری دکترها در دی��ابیس"""
+        # شروع همزمان ربات و نظارت
         try:
-            doctors_config = self.config.get_doctors_config()
-            config_doctors = [Doctor(**doc_config) for doc_config in doctors_config]
+            await asyncio.gather(
+                self.telegram_bot.start_polling(),
+                self.monitor_loop()
+            )
+        finally:
+            await self.http_client.aclose()
+    
+    async def _load_doctors_to_db(self):
+        """بارگذاری دکترها در دیتابیس"""
+        try:
+            config_doctors = self.config.get_doctors()
             
-            with db_session() as session:
+            async with db_session(self.db_manager) as session:
                 for doctor in config_doctors:
                     # بررسی وجود دکتر
-                    existing = session.query(DBDoctor).filter(
-                        DBDoctor.slug == doctor.slug
-                    ).first()
+                    result = await session.execute(select(DBDoctor).filter(DBDoctor.slug == doctor.slug))
+                    existing = result.scalar_one_or_none()
                     
                     if not existing:
                         # اضافه کردن دکتر جدید
@@ -141,12 +131,63 @@ class SlotHunter:
                         existing.center_phone = doctor.center_phone
                         existing.is_active = doctor.is_active
                 
-                session.commit()
+                await session.commit()
                 
         except Exception as e:
             self.logger.error(f"❌ خطا در بارگذاری دکترها: {e}")
     
+    async def monitor_loop(self):
+        """حلقه اصلی نظارت"""
+        while self.running:
+            try:
+                # دریافت اطلاعات دکترهای فعال
+                async with db_session(self.db_manager) as session:
+                    result = await session.execute(select(DBDoctor).filter(DBDoctor.is_active == True))
+                    active_doctors = result.scalars().all()
+                
+                if active_doctors:
+                    self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
+                    
+                    # بررسی همه دکترها
+                    for doctor in active_doctors:
+                        await self.check_doctor(doctor)
+                else:
+                    self.logger.debug("📭 هیچ دکتر فعالی برای بررسی وجود ندارد")
+                
+                # صبر تا دور بعدی
+                self.logger.info(f"⏰ صبر {self.config.check_interval} ثانیه تا دور بعدی...")
+                await asyncio.sleep(self.config.check_interval)
+                
+            except KeyboardInterrupt:
+                self.logger.info("⏹️ دریافت سیگنال توقف...")
+                break
+            except Exception as e:
+                self.logger.error(f"❌ خطا در حلقه نظارت: {e}")
+                await notify_admin_critical_error(f"خطا در حلقه نظارت: {e}")
+                await asyncio.sleep(60)  # صبر بیشتر در صورت خطا
     
+    async def check_doctor(self, doctor: DBDoctor):
+        """بررسی نوبت‌های یک دکتر"""
+        try:
+            api = PazireshAPI(doctor, client=self.http_client)
+            appointments = await api.get_available_appointments(days_ahead=self.config.days_ahead)
+            
+            if appointments:
+                self.logger.info(f"🎯 {len(appointments)} نوبت برای {doctor.name} پیدا شد!")
+                
+                # نمایش در لاگ
+                for apt in appointments[:3]:
+                    self.logger.info(f"  ⏰ {apt.time_str}")
+                
+                # اطلاع‌رسانی ��ا ربات تلگرام
+                await self.telegram_bot.send_appointment_alert(doctor, appointments)
+            else:
+                self.logger.debug(f"📅 هیچ نوبتی برای {doctor.name} موجود نیست")
+                
+        except Exception as e:
+            self.logger.error(f"❌ خطا در بررسی {doctor.name}: {e}")
+    
+        
     async def stop(self):
         """توقف نوبت‌یاب"""
         self.logger.info("🛑 در حال توقف...")
@@ -169,13 +210,19 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     # ایجاد و اجرای نوبت‌یاب
-    hunter = SlotHunter()
+    config = Config()
+    db_manager = DatabaseManager(config.database_url)
+    hunter = SlotHunter(db_manager)
     try:
         await hunter.start()
     except KeyboardInterrupt:
         await hunter.stop()
     except Exception as e:
         print(f"❌ خطای غیرمنتظره: {e}")
+        try:
+            asyncio.run(notify_admin_critical_error(f"خطای غیرمنتظره: {e}"))
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@
 import os
 from typing import List, Set
 from pathlib import Path
+import shutil
+import time
 
 from src.database.database import db_session
 from src.database.models import User
@@ -138,35 +140,72 @@ class AccessControl:
         except:
             return []
     
+    def _backup_env_file(self, env_file: Path) -> Path:
+        """ایجاد backup با timestamp و مدیریت تعداد backupها"""
+        backup_dir = env_file.parent / "env_backups"
+        backup_dir.mkdir(exist_ok=True)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        backup_path = backup_dir / f".env.bak.{timestamp}"
+        shutil.copy2(env_file, backup_path)
+        # فقط ۵ backup آخر را نگه دار
+        backups = sorted(backup_dir.glob(".env.bak.*"), reverse=True)
+        for old in backups[5:]:
+            try:
+                old.unlink()
+            except Exception as e:
+                logger.warning(f"حذف backup قدیمی .env شکست خورد: {e}")
+        return backup_path
+
+    def _validate_env_access_mode(self, env_file: Path, mode: str) -> bool:
+        """اعتبارسنجی مقدار ACCESS_MODE در .env"""
+        try:
+            with open(env_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            import re
+            m = re.search(r'ACCESS_MODE=(\w+)', content)
+            return m and m.group(1) == mode
+        except Exception as e:
+            logger.error(f"خطا در اعتبارسنجی ACCESS_MODE: {e}")
+            return False
+
     def set_access_mode(self, mode: str) -> bool:
-        """تنظیم حالت دسترسی"""
+        """تنظیم حالت دسترسی با بکاپ و اعتبارسنجی"""
         valid_modes = ['open', 'restricted', 'admin_only']
-        
         if mode not in valid_modes:
             return False
-        
         try:
-            # به‌روزرسانی فایل .env
             env_file = Path(".env")
+            backup_path = None
             if env_file.exists():
+                backup_path = self._backup_env_file(env_file)
                 with open(env_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                
-                # اضافه یا به‌روزرسانی ACCESS_MODE
                 if 'ACCESS_MODE=' in content:
                     import re
                     content = re.sub(r'ACCESS_MODE=.*', f'ACCESS_MODE={mode}', content)
                 else:
                     content += f"\nACCESS_MODE={mode}\n"
-                
                 with open(env_file, 'w', encoding='utf-8') as f:
                     f.write(content)
-            
+                # اعتبارسنجی بعد از ویرایش
+                if not self._validate_env_access_mode(env_file, mode):
+                    # بازگردانی backup
+                    if backup_path:
+                        shutil.copy2(backup_path, env_file)
+                    logger.error("اعتبارسنجی ACCESS_MODE پس از ویرایش .env شکست خورد. فایل backup بازگردانده شد.")
+                    return False
             self.access_mode = mode
-            logger.info(f"حالت دسترسی به {mode} تغییر کرد")
+            logger.info(f"حالت دسترسی به {mode} تغییر کرد (با backup و اعتبارسنجی)")
             return True
         except Exception as e:
             logger.error(f"خطا در تنظیم حالت دسترسی: {e}")
+            # بازگردانی backup در صورت خطا
+            if 'backup_path' in locals() and backup_path:
+                try:
+                    shutil.copy2(backup_path, env_file)
+                    logger.warning("فایل .env به حالت قبل بازگردانده شد.")
+                except Exception as e2:
+                    logger.error(f"خطا در بازگردانی backup .env: {e2}")
             return False
     
     def get_access_mode(self) -> str:

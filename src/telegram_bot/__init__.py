@@ -8,6 +8,7 @@ from .access_control import access_control
 from .user_roles import user_role_manager, UserRole
 from .admin_handlers import TelegramAdminHandlers
 from .decorators import admin_required, user_required
+from .utils import TelegramUtils
 
 __all__ = [
     'SlotHunterBot',
@@ -21,5 +22,6 @@ __all__ = [
     'UserRole',
     'TelegramAdminHandlers',
     'admin_required',
-    'user_required'
+    'user_required',
+    'TelegramUtils'
 ]

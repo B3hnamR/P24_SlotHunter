@@ -6,35 +6,67 @@ import yaml
 from typing import Dict, List, Any
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, ValidationError
 
-# from src.api.models import Doctor # وابستگی حذف شد
+from src.api.models import Doctor
+from src.utils.logger import get_logger
 
+
+class DatabaseConfig(BaseModel):
+    url: str = Field("sqlite+aiosqlite:///data/slothunter.db", env="DATABASE_URL")
+
+class ApiConfig(BaseModel):
+    base_url: str = Field("https://apigw.paziresh24.com/booking/v2", env="API_BASE_URL")
+
+class TelegramConfig(BaseModel):
+    bot_token: str = Field("", env="TELEGRAM_BOT_TOKEN")
+    admin_chat_id: int = Field(0, env="ADMIN_CHAT_ID")
+
+class MonitoringConfig(BaseModel):
+    check_interval: int = Field(30, env="CHECK_INTERVAL")
+    max_retries: int = 3
+    timeout: int = 10
+    days_ahead: int = 7
+
+class LoggingConfig(BaseModel):
+    level: str = Field("INFO", env="LOG_LEVEL")
+    file: str = "logs/slothunter.log"
+    max_size: str = "10MB"
+    backup_count: int = 5
+
+class AppConfig(BaseModel):
+    database: DatabaseConfig = DatabaseConfig()
+    api: ApiConfig = ApiConfig()
+    telegram: TelegramConfig = TelegramConfig()
+    monitoring: MonitoringConfig = MonitoringConfig()
+    logging: LoggingConfig = LoggingConfig()
+    doctors: List[Doctor] = []
 
 class Config:
     """کلاس مدیریت تنظیمات"""
     
     def __init__(self, config_path: str = "config/config.yaml"):
-        # بارگذاری فایل .env
         load_dotenv()
-        
         self.config_path = Path(config_path)
-        self._config = self._load_config()
+        self.logger = get_logger("Config")
+        self._config = self._load_and_validate_config()
     
-    def _load_config(self) -> Dict[str, Any]:
-        """بارگذاری فایل تنظیمات"""
+    def _load_and_validate_config(self) -> AppConfig:
+        """بارگذاری و اعتبارسنجی تنظیمات"""
+        config_data = self._load_config_from_file()
         try:
-            if self.config_path.exists():
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                
-                # جایگزینی متغیرهای محیطی
-                config = self._replace_env_vars(config)
-                return config
-            else:
-                return self._get_default_config()
-        except Exception as e:
-            print(f"❌ خطا در بارگذاری تنظیمات: {e}")
-            return self._get_default_config()
+            return AppConfig(**config_data)
+        except ValidationError as e:
+            self.logger.error(f"❌ خطای اعتبارسنجی تنظیمات: {e}")
+            # در صورت خطا، از تنظیمات پیش‌فرض استفاده کن
+            return AppConfig()
+
+    def _load_config_from_file(self) -> Dict[str, Any]:
+        """بارگذاری تنظیمات از فایل"""
+        if self.config_path.exists():
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+        return {}
     
     def _replace_env_vars(self, obj: Any) -> Any:
         """جایگزینی متغیرهای محیطی در تنظیمات"""
@@ -60,6 +92,12 @@ class Config:
             admin_chat_id = 0
             
         return {
+            'database': {
+                'url': os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///data/slothunter.db')
+            },
+            'api': {
+                'base_url': os.getenv('API_BASE_URL', 'https://apigw.paziresh24.com/booking/v2')
+            },
             'telegram': {
                 'bot_token': os.getenv('TELEGRAM_BOT_TOKEN', ''),
                 'admin_chat_id': admin_chat_id
@@ -81,99 +119,49 @@ class Config:
     
     @property
     def telegram_bot_token(self) -> str:
-        """توکن ربات تلگرام"""
-        token = self._config.get('telegram', {}).get('bot_token', '')
-        # اگر هنوز placeholder است، مستقیماً از env بخوان
-        if token.startswith('${'):
-            token = os.getenv('TELEGRAM_BOT_TOKEN', '')
-        return token
-    
+        return self._config.telegram.bot_token
+
     @property
     def admin_chat_id(self) -> int:
-        """شناسه چت ادمین"""
-        chat_id = self._config.get('telegram', {}).get('admin_chat_id', 0)
-        # اگر هنوز placeholder است، مستقیماً از env بخوان
-        if isinstance(chat_id, str) and chat_id.startswith('${'):
-            chat_id = os.getenv('ADMIN_CHAT_ID', '0')
-            if chat_id.isdigit():
-                chat_id = int(chat_id)
-            else:
-                chat_id = 0
-        
-        # اطمینان از اینکه همیشه int برگردانده شود
-        if isinstance(chat_id, str):
-            if chat_id.isdigit():
-                chat_id = int(chat_id)
-            else:
-                chat_id = 0
-        
-        return int(chat_id) if chat_id else 0
-    
+        return self._config.telegram.admin_chat_id
+
     @property
     def check_interval(self) -> int:
-        """فاصله زمانی بررسی (ثانیه)"""
-        interval = self._config.get('monitoring', {}).get('check_interval', 30)
-        if isinstance(interval, str):
-            interval = int(os.getenv('CHECK_INTERVAL', '30'))
-        return interval
-    
+        return self._config.monitoring.check_interval
+
     @property
     def max_retries(self) -> int:
-        """حداکثر تعداد تلاش مجدد"""
-        return self._config.get('monitoring', {}).get('max_retries', 3)
-    
+        return self._config.monitoring.max_retries
+
     @property
     def api_timeout(self) -> int:
-        """timeout درخواست‌های API"""
-        return self._config.get('monitoring', {}).get('timeout', 10)
-    
+        return self._config.monitoring.timeout
+
     @property
     def days_ahead(self) -> int:
-        """تعداد روزهای آینده برای بررسی"""
-        return self._config.get('monitoring', {}).get('days_ahead', 7)
-    
+        return self._config.monitoring.days_ahead
+
     @property
     def log_level(self) -> str:
-        """سطح لاگ"""
-        level = self._config.get('logging', {}).get('level', 'INFO')
-        if isinstance(level, str) and level.startswith('${'):
-            level = os.getenv('LOG_LEVEL', 'INFO')
-        return level
-    
+        return self._config.logging.level
+
     @property
     def log_file(self) -> str:
-        """مسیر فایل لاگ"""
-        return self._config.get('logging', {}).get('file', 'logs/slothunter.log')
+        return self._config.logging.file
 
     @property
-    def celery_broker_url(self) -> str:
-        """URL برای Celery broker (Redis)"""
-        return os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    def database_url(self) -> str:
+        return self._config.database.url
 
     @property
-    def celery_result_backend(self) -> str:
-        """URL برای Celery result backend (Redis)"""
-        return os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+    def api_base_url(self) -> str:
+        return self._config.api.base_url
     
-    def get_doctors_config(self) -> List[Dict[str, Any]]:
-        """دریافت تنظیمات دکترها به صورت دیکشنری"""
-        return self._config.get('doctors', [])
+    def get_doctors(self) -> List[Doctor]:
+        """دریافت لیست دکترها"""
+        return self._config.doctors
     
     def reload(self):
         """بارگذاری مجدد تنظیمات"""
-        load_dotenv()  # بارگذاری مجدد .env
-        self._config = self._load_config()
-
-    def set_check_interval(self, interval: int):
-        """تنظیم فاصله زمانی بررسی"""
-        if 'monitoring' not in self._config:
-            self._config['monitoring'] = {}
-        self._config['monitoring']['check_interval'] = interval
-
-        # ذخیره در فایل .env برای ماندگاری
-        from dotenv import set_key
-        dotenv_path = Path('.env')
-        set_key(dotenv_path, 'CHECK_INTERVAL', str(interval))
-
-        # اعمال فوری در نمونه فعلی
-        self.reload()
+        load_dotenv()
+        self._config = self._load_and_validate_config()

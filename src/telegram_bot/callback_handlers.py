@@ -3,17 +3,13 @@ Clean Callback handlers for inline keyboard buttons - Professional Version
 """
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import SQLAlchemyError
-from telegram.error import TelegramError
+from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
 from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription, AppointmentLog
-from src.telegram_bot.messages import MessageFormatter
 from src.telegram_bot.menu_handlers import MenuHandlers
-from src.telegram_bot.constants import CallbackPrefix, AdminCallback, MainMenuCallbacks
 from src.utils.logger import get_logger
 
 logger = get_logger("CallbackHandlers")
@@ -34,10 +30,10 @@ class CallbackHandlers:
             
             # Skip callbacks that should be handled by ConversationHandler
             conversation_callbacks = [
-                AdminCallback.ADD_DOCTOR,
-                AdminCallback.SET_INTERVAL,
-                AdminCallback.CONFIRM_ADD_DOCTOR,
-                AdminCallback.CANCEL_ADD_DOCTOR
+                "admin_add_doctor",
+                "admin_set_interval", 
+                "confirm_add_doctor",
+                "cancel_add_doctor"
             ]
             
             if data in conversation_callbacks:
@@ -46,47 +42,41 @@ class CallbackHandlers:
                 return
             
             # مدیریت callback های اصلی
-            if data == MainMenuCallbacks.BACK_TO_MAIN:
+            if data == "back_to_main":
                 await CallbackHandlers._handle_back_to_main(query)
-            elif data == MainMenuCallbacks.BACK_TO_DOCTORS:
+            elif data == "back_to_doctors":
                 await CallbackHandlers._handle_back_to_doctors(query)
-            elif data.startswith(CallbackPrefix.DOCTOR_INFO):
+            elif data.startswith("doctor_info_"):
                 await CallbackHandlers._handle_doctor_info(query, data, user_id)
-            elif data.startswith(CallbackPrefix.SUBSCRIBE):
+            elif data.startswith("subscribe_"):
                 await CallbackHandlers._handle_subscribe(query, data, user_id)
-            elif data.startswith(CallbackPrefix.UNSUBSCRIBE):
+            elif data.startswith("unsubscribe_"):
                 await CallbackHandlers._handle_unsubscribe(query, data, user_id)
-            elif data.startswith(CallbackPrefix.VIEW_WEBSITE):
+            elif data.startswith("view_website_"):
                 await CallbackHandlers._handle_view_website(query, data)
-            elif data.startswith(CallbackPrefix.STATS):
+            elif data.startswith("stats_"):
                 await CallbackHandlers._handle_doctor_stats(query, data, user_id)
-            elif data.startswith(CallbackPrefix.SETTINGS):
+            elif data.startswith("settings_"):
                 await CallbackHandlers._handle_settings(query, data, user_id)
-            elif data == MainMenuCallbacks.SUBSCRIPTION_STATS:
+            elif data == "subscription_stats":
                 await CallbackHandlers._handle_subscription_stats(query, user_id)
-            elif data == MainMenuCallbacks.NEW_SUBSCRIPTION:
+            elif data == "new_subscription":
                 await CallbackHandlers._handle_new_subscription(query, user_id)
-            elif data == MainMenuCallbacks.REFRESH_STATUS:
+            elif data == "refresh_status":
                 await CallbackHandlers._handle_refresh_status(query, user_id)
-            elif data == MainMenuCallbacks.DETAILED_STATS:
+            elif data == "detailed_stats":
                 await CallbackHandlers._handle_detailed_stats(query, user_id)
-            elif data == MainMenuCallbacks.SYSTEM_STATUS:
+            elif data == "system_status":
                 await CallbackHandlers._handle_system_status(query)
-            elif data == MainMenuCallbacks.SHOW_DOCTORS:
+            elif data == "show_doctors":
                 await CallbackHandlers._handle_show_doctors(query)
-            elif data == MainMenuCallbacks.SHOW_SUBSCRIPTIONS:
+            elif data == "show_subscriptions":
                 await CallbackHandlers._handle_show_subscriptions(query, user_id)
-            elif data == MainMenuCallbacks.REFRESH_ALL_SUBSCRIPTIONS:
+            elif data == "refresh_all_subscriptions":
                 await CallbackHandlers._handle_refresh_all_subscriptions(query, user_id)
-            # Admin callbacks
+            # Admin callbacks (only implemented ones)
             elif data.startswith("admin_"):
                 await CallbackHandlers._handle_admin_callbacks(query, data, user_id)
-            elif data.startswith(CallbackPrefix.TOGGLE_DOCTOR):
-                from src.telegram_bot.admin_handlers import TelegramAdminHandlers
-                await TelegramAdminHandlers.toggle_doctor_status(update, context)
-            elif data == AdminCallback.BACK_TO_ADMIN_PANEL:
-                from src.telegram_bot.admin_handlers import TelegramAdminHandlers
-                await TelegramAdminHandlers.admin_panel(update, context)
             else:
                 await query.edit_message_text(
                     "❌ دستور نامشخص. لطفاً دوباره تلاش کنید.",
@@ -95,18 +85,34 @@ class CallbackHandlers:
                     ]])
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در callback query: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در callback query: {e}")
-            # معمولا نیازی به پاسخ به کاربر نیست، چون ممکن است پیام قبلا حذف شده باشد
+        except ValueError as e:
+            logger.error(f"❌ خطا در اعتبارسنجی داده callback: {e}")
+            await query.edit_message_text(
+                "❌ داده نامعتبر. لطفاً دوباره تلاش کنید.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                ]])
+            )
+        except ConnectionError as e:
+            logger.error(f"❌ خطا در اتصال به دیتابیس: {e}")
+            await query.edit_message_text(
+                "❌ خطا در اتصال به سیستم. لطفاً دوباره تلاش کنید.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                ]])
+            )
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در callback query: {e}")
+            from src.telegram_bot.messages import MessageFormatter
+            logger.error(f"❌ خطای غیرمنتظره در مدیریت callback: {e}")
             try:
-                await query.edit_message_text(MessageFormatter.error_message())
-            except TelegramError:
-                pass  # اگر ویرایش پیام هم خطا داد، کاری نمی‌توان کرد
+                await query.edit_message_text(
+                    "❌ خطا در پردازش درخواست. لطفاً دوباره تلاش کنید.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                    ]])
+                )
+            except:
+                pass
     
     @staticmethod
     async def _handle_back_to_main(query):
@@ -163,13 +169,9 @@ class CallbackHandlers:
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در بازگشت به لیست دکترها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در بازگشت به لیست دکترها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در بازگشت به لیست دکترها: {e}")
+            from src.telegram_bot.messages import MessageFormatter
+            logger.error(f"❌ خطا در بازگشت به لیست دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -234,13 +236,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش اطلاعات دکتر: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش اطلاعات دکتر: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش اطلاعات دکتر: {e}")
+            logger.error(f"❌ خطا در نمایش اطلاعات دکتر: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -314,21 +311,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
-
-                logger.info(
-                    "📝 اشتراک جدید: %s -> %s",
-                    user.full_name,
-                    doctor.name,
-                    extra={'user_id': user.id, 'doctor_id': doctor.id}
-                )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در اشتراک: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در اشتراک: {e}")
+                logger.info(f"📝 اشتراک جدید: {user.full_name} -> {doctor.name}")
+                
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در اشتراک: {e}")
+            logger.error(f"❌ خطا در اشتراک: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -393,21 +380,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
-
-                logger.info(
-                    "🗑️ لغو اشتراک: %s -> %s",
-                    user.full_name,
-                    doctor.name,
-                    extra={'user_id': user.id, 'doctor_id': doctor.id}
-                )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در لغو اشتراک: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در لغو اشتراک: {e}")
+                logger.info(f"🗑️ لغو اشتراک: {user.full_name} -> {doctor.name}")
+                
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در لغو اشتراک: {e}")
+            logger.error(f"❌ خطا در لغو اشتراک: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -444,13 +421,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش لینک وب‌سایت: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش لینک وب‌سایت: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش لینک وب‌سایت: {e}")
+            logger.error(f"❌ خطا در نمایش لینک وب‌سایت: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -525,13 +497,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش آمار دکتر: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار دکتر: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار دکتر: {e}")
+            logger.error(f"❌ خطا در نمایش آمار دکتر: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -605,13 +572,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش آمار اشتراک‌ها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار اشتراک‌ها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار اشتراک‌ها: {e}")
+            logger.error(f"❌ خطا در نمایش آمار اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -672,13 +634,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در اشتراک جدید: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در اشتراک جدید: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در اشتراک جدید: {e}")
+            logger.error(f"❌ خطا در اشتراک جدید: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -738,13 +695,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در بروزرسانی وضعیت: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در بروزرسانی وضعیت: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در بروزرسانی وضعیت: {e}")
+            logger.error(f"❌ خطا در بروزرسانی وضعیت: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -821,13 +773,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش آمار تفصیلی: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار تفصیلی: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار تفصیلی: {e}")
+            logger.error(f"❌ خطا در نمایش آمار تفصیلی: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -873,13 +820,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش وضعیت سیستم: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش وضعیت سیستم: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش وضعیت سیستم: {e}")
+            logger.error(f"❌ خطا در نمایش وضعیت سیستم: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -912,13 +854,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش لیست دکترها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش لیست دکترها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش لیست دکترها: {e}")
+            logger.error(f"❌ خطا در نمایش لیست دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -926,17 +863,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         """نمایش اشتراک‌ها از callback"""
         try:
             with db_session() as session:
-                # بهینه‌سازی کوئری با joinedload برای جلوگیری از N+1
-                user = (
-                    session.query(User)
-                    .options(
-                        joinedload(User.subscriptions)
-                        .joinedload(Subscription.doctor)
-                    )
-                    .filter(User.telegram_id == user_id)
-                    .first()
-                )
-
+                user = session.query(User).filter(User.telegram_id == user_id).first()
                 if not user:
                     await query.edit_message_text(
                         "❌ کاربر یافت نشد. لطفاً دوباره /start کنید.",
@@ -977,38 +904,52 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در نمایش اشتراک‌ها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در نمایش اشتراک‌ها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش اشتراک‌ها: {e}")
+            logger.error(f"❌ خطا در نمایش اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
+    # Admin callback handlers - فقط قسمت‌های پیاده‌سازی شده
     @staticmethod
     async def _handle_admin_callbacks(query, data, user_id):
-        """مدیریت callback های ادمین"""
-        from src.telegram_bot.admin_handlers import TelegramAdminHandlers
-        update = query.message.reply_to_message.update if query.message.reply_to_message else query
+        """مدیریت callback های ادمین - فقط قسمت‌های کاربردی"""
+        try:
+            from src.telegram_bot.user_roles import user_role_manager
+            
+            # بررسی دسترسی ادمین
+            if not user_role_manager.is_admin_or_higher(user_id):
+                await query.edit_message_text(
+                    "❌ شما دسترسی به این بخش را ندارید.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                    ]])
+                )
+                return
+        except ImportError:
+            # اگر user_roles موجود نباشد، فقط ادمین اصلی را بررسی کن
+            from src.utils.config import Config
+            config = Config()
+            if user_id != config.admin_chat_id:
+                await query.edit_message_text(
+                    "❌ شما دسترسی به این بخش را ندارید.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+                    ]])
+                )
+                return
         
-        if not TelegramAdminHandlers.is_admin(user_id):
-            await query.edit_message_text("❌ شما دسترسی ادمین ندارید.")
-            return
-
-        if data == "admin_manage_doctors":
-            await TelegramAdminHandlers.manage_doctors(update, None)
-        elif data == "admin_stats":
-            await TelegramAdminHandlers.show_admin_stats(update, None)
-        elif data == "admin_manage_users":
-            await TelegramAdminHandlers.show_user_management(update, None)
-        elif data == "admin_access_settings":
-            await TelegramAdminHandlers.show_access_settings(update, None)
+        admin_action = data.replace("admin_", "")
+        
+        # فقط قسمت‌های پیاده‌سازی شده
+        if admin_action == "manage_doctors":
+            await CallbackHandlers._handle_admin_manage_doctors(query, user_id)
+        elif admin_action == "dashboard":
+            await CallbackHandlers._handle_admin_dashboard(query, user_id)
         else:
+            # برای سایر پارامترها که هنوز پیاده‌سازی نشده‌اند
             await query.edit_message_text(
-                "این دکمه هنوز پیاده‌سازی نشده است.",
+                f"🔧 **{admin_action}**\n\nاین قسمت در حال توسعه است.",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")
                 ]])
             )
     
@@ -1034,7 +975,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 
 📊 **آمار:**
 • کل دکترها: {len(doctors)}
-• ��عال: {len([d for d in doctors if d.is_active])}
+• فعال: {len([d for d in doctors if d.is_active])}
 • غیرفعال: {len([d for d in doctors if not d.is_active])}
 
 🔧 **عملیات:**
@@ -1052,13 +993,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در مدیریت دکترها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در مدیریت دکترها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در مدیریت دکترها: {e}")
+            logger.error(f"❌ خطا در مدیریت دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -1110,13 +1046,8 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در داشبورد ادمین: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در داشبورد ادمین: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در داشبورد ادمین: {e}")
+            logger.error(f"❌ خطا در داشبورد ادمین: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -1192,11 +1123,6 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
-        except SQLAlchemyError as e:
-            logger.error(f"❌ خطای دیتابیس در بروزرسانی اشتراک‌ها: {e}")
-            await query.edit_message_text(MessageFormatter.db_error_message())
-        except TelegramError as e:
-            logger.warning(f"⚠️ خطای تلگرام در بروزرسانی اشتراک‌ها: {e}")
         except Exception as e:
-            logger.exception(f"❌ خطای پیش‌بینی نشده در بروزرسانی اشتراک‌ها: {e}")
+            logger.error(f"❌ خطا در بروزرسانی اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())

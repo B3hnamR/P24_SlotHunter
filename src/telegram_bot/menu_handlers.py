@@ -9,9 +9,7 @@ from datetime import datetime
 
 from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription, AppointmentLog
-from src.telegram_bot.user_roles import user_role_manager, UserRole
 from src.telegram_bot.messages import MessageFormatter
-from src.telegram_bot.constants import MainMenuCallbacks, CallbackPrefix
 from src.utils.logger import get_logger
 
 logger = get_logger("MenuHandlers")
@@ -33,6 +31,7 @@ class MenuHandlers:
         
         # بررسی نقش کاربر و اضافه کردن منوهای مخصوص
         if user_id:
+            from src.telegram_bot.user_roles import user_role_manager, UserRole
             user_role = user_role_manager.get_user_role(user_id)
             
             # منوی کاربران عادی و بالاتر
@@ -77,7 +76,7 @@ class MenuHandlers:
         
         # دکمه بازگشت
         keyboard.append([
-            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data=MainMenuCallbacks.BACK_TO_MAIN)
+            InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
         ])
         
         return InlineKeyboardMarkup(keyboard)
@@ -97,9 +96,9 @@ class MenuHandlers:
             ])
         
         keyboard.extend([
-            [InlineKeyboardButton("🔗 مشاهده در سایت", callback_data=f"{CallbackPrefix.VIEW_WEBSITE}{doctor_id}")],
-            [InlineKeyboardButton("📊 آمار نوبت‌ها", callback_data=f"{CallbackPrefix.STATS}{doctor_id}")],
-            [InlineKeyboardButton("🔙 بازگشت به لیست دکترها", callback_data=MainMenuCallbacks.BACK_TO_DOCTORS)]
+            [InlineKeyboardButton("🔗 مشاهده در سایت", callback_data=f"view_website_{doctor_id}")],
+            [InlineKeyboardButton("📊 آمار نوبت‌ها", callback_data=f"stats_{doctor_id}")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_doctors")]
         ])
         
         return InlineKeyboardMarkup(keyboard)
@@ -168,22 +167,24 @@ class MenuHandlers:
                 await MenuHandlers.show_support_menu(update, context)
             
             # منوهای مدیریتی
-            elif message_text in ["📈 آمار سیستم", "👥 مدیریت کاربران", "👑 پنل ادمین", "🔧 مدیریت سیستم", "⭐ سوپر ادمین", "🛠️ تنظیمات پیشرفته"]:
-                # از ایمپورت محلی برای جلوگیری از وابستگی متقابل استفاده می‌شود
+            elif message_text == "📈 آمار سیستم":
                 from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
-
-                if message_text == "📈 آمار سیستم":
-                    await AdminMenuHandlers.show_system_stats_menu(update, context)
-                elif message_text == "👥 مدیریت کاربران":
-                    await AdminMenuHandlers.show_user_management_menu(update, context)
-                elif message_text == "👑 پنل ادمین":
-                    await AdminMenuHandlers.show_admin_panel(update, context)
-                elif message_text == "🔧 مدیریت سیستم":
-                    await AdminMenuHandlers.show_system_management_menu(update, context)
-                elif message_text == "⭐ سوپر ادمین":
-                    await AdminMenuHandlers.show_super_admin_menu(update, context)
-                elif message_text == "🛠️ تنظیمات پیشرفته":
-                    await AdminMenuHandlers.show_advanced_settings_menu(update, context)
+                await AdminMenuHandlers.show_system_stats_menu(update, context)
+            elif message_text == "👥 مدیریت کاربران":
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                await AdminMenuHandlers.show_user_management_menu(update, context)
+            elif message_text == "👑 پنل ادمین":
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                await AdminMenuHandlers.show_admin_panel(update, context)
+            elif message_text == "🔧 مدیریت سیستم":
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                await AdminMenuHandlers.show_system_management_menu(update, context)
+            elif message_text == "⭐ سوپر ادمین":
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                await AdminMenuHandlers.show_super_admin_menu(update, context)
+            elif message_text == "🛠️ تنظیمات پیشرفته":
+                from src.telegram_bot.admin_menu_handlers_fixed import AdminMenuHandlers
+                await AdminMenuHandlers.show_advanced_settings_menu(update, context)
             
             else:
                 # پیام خوش‌آمدگویی با منو
@@ -200,6 +201,7 @@ class MenuHandlers:
     async def show_welcome_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """نمایش منوی خوش‌آمدگویی"""
         user = update.effective_user
+        from src.telegram_bot.user_roles import user_role_manager, UserRole
         user_role = user_role_manager.get_user_role(user.id)
         role_display = user_role_manager.get_role_display_name(user_role)
         
@@ -308,7 +310,7 @@ class MenuHandlers:
                 )
                 
         except Exception as e:
-            logger.error(f"��� خطا در نمایش منوی اشتراک‌ها: {e}")
+            logger.error(f"❌ خطا در نمایش منوی اشتراک‌ها: {e}")
             await update.message.reply_text(
                 MessageFormatter.error_message(),
                 reply_markup=MenuHandlers.get_main_menu_keyboard()
@@ -519,14 +521,14 @@ class MenuHandlers:
 این ربات به شما کمک می‌کند تا نوبت‌های خالی دکترها در سایت پذیرش۲۴ را پیدا کنید.
 
 🔍 **نحوه کار:**
-1. در دکتر مور�� نظر مشترک شوید
+1. در دکتر مورد نظر نظر مشترک شوید
 2. ربات مداوم نوبت‌های خالی را بررسی می‌کند
 3. فوراً از نوبت‌های جدید مطلع می‌شوید
 
 📱 **استفاده از منو:**
 • **👨‍⚕️ دکترها**: مشاهده لیست دکترها
 • **📝 اشتراک‌ها**: مدیریت اشتراک‌های فعلی
-• **🔔 اشتراک جد��د**: اشتراک در دکتر جدید
+• **🔔 اشتراک جدید**: اشتراک در دکتر جدید
 • **🗑️ لغو اشتراک**: لغو اشتراک از دکتر
 • **📊 وضعیت من**: مشاهده آمار شخصی
 • **⚙️ تنظیمات**: تنظیمات ربات

@@ -3,24 +3,22 @@
 """
 import asyncio
 from telegram import Bot, Update
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, ConversationHandler,
-    MessageHandler, filters, ContextTypes, Defaults, AIORateLimiter
-)
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, ContextTypes
 from typing import List
 
 from src.telegram_bot.handlers import TelegramHandlers
 from src.telegram_bot.menu_handlers import MenuHandlers
 from src.telegram_bot.callback_handlers import CallbackHandlers
-from src.telegram_bot.admin_handlers import TelegramAdminHandlers
-from src.telegram_bot.constants import AdminCallback, ConversationStates
+from src.telegram_bot.admin_handlers import TelegramAdminHandlers, ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL
 from src.telegram_bot.messages import MessageFormatter
-from src.database.database import db_session
+from src.database.database import db_session, DatabaseManager
 from src.database.models import User, Subscription, Doctor, AppointmentLog
 from src.api.models import Appointment
 from src.utils.logger import get_logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import Forbidden, BadRequest, TimedOut, NetworkError
+from src.database.models import Doctor as DBDoctor
+from datetime import datetime
+from sqlalchemy import select, func
 
 logger = get_logger("TelegramBot")
 
@@ -28,27 +26,18 @@ logger = get_logger("TelegramBot")
 class SlotHunterBot:
     """کلاس اصلی ربات تلگرام"""
     
-    def __init__(self, token: str):
+    def __init__(self, token: str, db_manager: DatabaseManager):
         self.token = token
         self.bot = Bot(token)
+        self.db_manager = db_manager
         self.application = None
         self.is_running = False
         
     async def initialize(self):
         """راه‌اندازی ربات"""
         try:
-            # تنظیمات پیش‌فرض با Rate Limiter
-            # این کار باعث می‌شود تا هر کاربر نتواند بیش از حد درخواست ارسال کند
-            defaults = Defaults(
-                rate_limiter=AIORateLimiter(
-                    max_retries=3,  # حداکثر تلاش مجدد در صورت خطا
-                    time_period=10  # بازه زمانی برای محدودیت (مثلا ۱۰ ثانیه)
-                ),
-                block=False # جلوگیری از بلاک شدن کامل ربات
-            )
-
-            # ایجاد Application با تنظیمات جدید
-            self.application = Application.builder().token(self.token).defaults(defaults).build()
+            # ایجاد Application
+            self.application = Application.builder().token(self.token).build()
             
             # تنظیم handlers
             self._setup_handlers()
@@ -63,31 +52,37 @@ class SlotHunterBot:
             
             self.is_running = True
             
+        except ValueError as e:
+            logger.error(f"❌ خطا در تنظیمات ربات (توکن نامعتبر): {e}")
+            raise
+        except ConnectionError as e:
+            logger.error(f"❌ خطا در اتصال به تلگرام: {e}")
+            raise
         except Exception as e:
-            logger.error(f"❌ خطا در راه‌اندازی ربات: {e}")
+            logger.error(f"❌ خطای غیرمنتظره در راه‌اندازی ربات: {e}")
             raise
     
     def _setup_handlers(self):
         """تنظیم handler های ربات"""
         
-        # ConversationHandler for adding a doctor
+        # ConversationHandler برای افزودن دکتر
         add_doctor_conv = ConversationHandler(
-            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.start_add_doctor, pattern=f"^{AdminCallback.ADD_DOCTOR}$")],
+            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.start_add_doctor, pattern="^admin_add_doctor$")],
             states={
-                ConversationStates.ADD_DOCTOR_LINK.value: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_doctor_link)],
-                ConversationStates.ADD_DOCTOR_CONFIRM.value: [
-                    CallbackQueryHandler(TelegramAdminHandlers.confirm_add_doctor, pattern=f"^{AdminCallback.CONFIRM_ADD_DOCTOR}$"),
-                    CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern=f"^{AdminCallback.CANCEL_ADD_DOCTOR}$")
+                ADD_DOCTOR_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_doctor_link)],
+                ADD_DOCTOR_CONFIRM: [
+                    CallbackQueryHandler(TelegramAdminHandlers.confirm_add_doctor, pattern="^confirm_add_doctor$"),
+                    CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern="^cancel_add_doctor$")
                 ]
             },
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
-
-        # ConversationHandler for setting the check interval
+        
+        # ConversationHandler برای تنظیم زمان بررسی
         set_interval_conv = ConversationHandler(
-            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.set_check_interval, pattern=f"^{AdminCallback.SET_INTERVAL}$")],
+            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.set_check_interval, pattern="^admin_set_interval$")],
             states={
-                ConversationStates.SET_CHECK_INTERVAL.value: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_check_interval)]
+                SET_CHECK_INTERVAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_check_interval)]
             },
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
@@ -105,8 +100,15 @@ class SlotHunterBot:
         self.application.add_handler(CommandHandler("unsubscribe", TelegramHandlers.unsubscribe_command))
         self.application.add_handler(CommandHandler("status", TelegramHandlers.status_command))
         
-        # یکپارچه‌سازی CallbackQueryHandler ها
-        # تمام callback ها توسط یک handler مدیریت می‌شوند
+        # Specific admin callbacks - These must come before the general handler
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.manage_doctors, pattern="^admin_manage_doctors$"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.toggle_doctor_status, pattern="^toggle_doctor_"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_admin_stats, pattern="^admin_stats$"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_user_management, pattern="^admin_manage_users$"))
+        self.application.add_handler(CallbackQueryHandler(TelegramAdminHandlers.show_access_settings, pattern="^admin_access_settings$"))
+        self.application.add_handler(CallbackQueryHandler(self._handle_admin_callbacks, pattern="^back_to_admin_panel$"))
+        
+        # Menu callbacks (new role-based system) - This handles all other callbacks
         self.application.add_handler(CallbackQueryHandler(CallbackHandlers.handle_callback_query))
         
         # Menu-based message handlers - MUST be last to not interfere with conversations
@@ -128,17 +130,104 @@ class SlotHunterBot:
             # نمایش منوی خوش‌آمدگویی
             await MenuHandlers.show_welcome_menu(update, context)
             
-        except Exception as e:
-            logger.error(f"❌ خطا در دستور start: {e}")
+        except ConnectionError as e:
+            logger.error(f"❌ خطا در اتصال به دیتابیس در دستور start: {e}")
             await update.message.reply_text(
-                MessageFormatter.error_message(),
+                "❌ خطا در اتصال به سیستم. لطفاً دوباره تلاش کنید.",
+                reply_markup=MenuHandlers.get_main_menu_keyboard()
+            )
+        except Exception as e:
+            logger.error(f"❌ خطای غیرمنتظره در دستور start: {e}")
+            await update.message.reply_text(
+                "❌ خطا در پردازش درخواست. لطفاً دوباره تلاش کنید.",
                 reply_markup=MenuHandlers.get_main_menu_keyboard()
             )
     
     async def _handle_admin_callbacks(self, update, context):
         """مدیریت callback های ادمین"""
-        # این متد دیگر استفاده نمی‌شود و منطق آن به callback_handlers منتقل شده است
-        pass
+        query = update.callback_query
+        await query.answer()
+
+        if not TelegramAdminHandlers.is_admin(query.from_user.id):
+            await query.edit_message_text(MessageFormatter.access_denied_message())
+            return
+        
+        if query.data == "admin_stats":
+            await self._show_admin_stats(query)
+        elif query.data == "admin_manage_users":
+            await self._show_user_management(query)
+        elif query.data == "admin_access_settings":
+            await self._show_access_settings(query)
+        elif query.data == "back_to_admin_panel":
+            await TelegramAdminHandlers.admin_panel(update, context)
+    
+    async def _show_admin_stats(self, query):
+        """نمایش آمار سیستم"""
+        try:
+            async with db_session(self.db_manager) as session:
+                total_users = await session.scalar(select(func.count(User.id)).filter(User.is_active == True))
+                total_doctors = await session.scalar(select(func.count(Doctor.id)))
+                active_doctors = await session.scalar(select(func.count(Doctor.id)).filter(Doctor.is_active == True))
+                total_subscriptions = await session.scalar(select(func.count(Subscription.id)).filter(Subscription.is_active == True))
+                
+                from datetime import timedelta
+                
+                today = datetime.now().date()
+                appointments_today = await session.scalar(
+                    select(func.count(AppointmentLog.id)).filter(AppointmentLog.created_at >= today)
+                )
+                
+                stats = {
+                    'total_users': total_users,
+                    'total_doctors': total_doctors,
+                    'active_doctors': active_doctors,
+                    'total_subscriptions': total_subscriptions,
+                    'appointments_today': appointments_today,
+                }
+                stats_text = MessageFormatter.admin_stats_message(stats)
+                
+                keyboard = [[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
+                ]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode='Markdown')
+                
+        except Exception as e:
+            logger.error(f"خطا در نمایش آمار: {e}")
+            await query.edit_message_text(MessageFormatter.error_message("خطا در دریافت آمار سیستم"))
+    
+    async def _show_user_management(self, query):
+        """مدیریت کاربران"""
+        try:
+            async with db_session(self.db_manager) as session:
+                result = await session.execute(select(User).filter(User.is_active == True).order_by(User.created_at.desc()).limit(10))
+                users = result.scalars().all()
+                
+                user_list = MessageFormatter.user_management_message(users)
+                
+                keyboard = [[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
+                ]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(user_list, reply_markup=reply_markup, parse_mode='Markdown')
+                
+        except Exception as e:
+            logger.error(f"خطا در مدیریت کاربران: {e}")
+            await query.edit_message_text(MessageFormatter.error_message("خطا در بارگذاری لیست کاربران"))
+    
+    async def _show_access_settings(self, query):
+        """تنظیمات دسترسی"""
+        
+        access_text = MessageFormatter.access_settings_message()
+        
+        keyboard = [[
+            InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_admin_panel")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(access_text, reply_markup=reply_markup, parse_mode='Markdown')
     
     async def start_polling(self):
         """شروع polling"""
@@ -172,34 +261,33 @@ class SlotHunterBot:
         except Exception as e:
             logger.error(f"❌ خطا در توقف ربات: {e}")
     
-async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appointment]):
-        """ارسال اطلاع‌رسانی نوبت جدید با مدیریت خطای پیشرفته"""
+    async def send_appointment_alert(self, db_doctor: DBDoctor, appointments: List[Appointment]):
+        """ارسال اطلاع‌رسانی نوبت جدید"""
         try:
-            with db_session() as session:
-                # پیدا کردن دکتر در دیتابیس
-                from src.database.models import Doctor as DBDoctor
-                db_doctor = session.query(DBDoctor).filter(DBDoctor.slug == doctor.slug).first()
-
-                if not db_doctor:
-                    logger.warning(f"⚠️ دکتر {doctor.name} در دیتابیس یافت نشد، اطلاع‌رسانی لغو شد.")
-                    return
-
+            # دریافت مشترکین فعال این دکتر
+            async with db_session(self.db_manager) as session:
+                session.add(db_doctor)
+                
                 # دریافت مشترکین فعال
-                active_subscriptions = session.query(Subscription).filter(
-                    Subscription.doctor_id == db_doctor.id,
-                    Subscription.is_active == True
-                ).all()
-
+                result = await session.execute(
+                    select(Subscription).filter(
+                        Subscription.doctor_id == db_doctor.id,
+                        Subscription.is_active == True
+                    )
+                )
+                active_subscriptions = result.scalars().all()
+                
                 if not active_subscriptions:
-                    logger.info(f"📭 هیچ مشترکی برای دکتر {doctor.name} وجود ندارد.")
+                    logger.info(f"📭 هیچ مشترکی برای {db_doctor.name} وجود ندارد")
                     return
-
+                
                 # ایجاد پیام
-                message = MessageFormatter.appointment_alert_message(doctor, appointments)
+                message = MessageFormatter.appointment_alert_message(db_doctor, appointments)
+                
+                # ارسال به تمام مشترکین
                 sent_count = 0
                 failed_count = 0
-
-                # ارسال پیام به تمام مشترکین
+                
                 for subscription in active_subscriptions:
                     try:
                         await self.bot.send_message(
@@ -209,23 +297,37 @@ async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appoin
                             disable_web_page_preview=True
                         )
                         sent_count += 1
-                        await asyncio.sleep(0.1)  # جلوگیری از Rate Limit
-
-                    except Forbidden:
-                        logger.warning(f"🚫 کاربر {subscription.user.telegram_id} ربات را بلاک کرده. اشتراک غیرفعال می‌شود.")
-                        subscription.is_active = False
-                        session.commit()
-                        failed_count += 1
-                    except BadRequest as e:
-                        logger.error(f"❌ خطای BadRequest برای کاربر {subscription.user.telegram_id}: {e}. اشتراک غیرفعال می‌شود.")
-                        subscription.is_active = False
-                        session.commit()
-                        failed_count += 1
-                    except (TimedOut, NetworkError) as e:
-                        logger.warning(f"⚠️ خطای شبکه در ارسال به {subscription.user.telegram_id}: {e}. این پیام ارسال نشد.")
-                        failed_count += 1
+                        
+                        # کمی صبر برای جلوگیری از rate limiting
+                        await asyncio.sleep(0.1)
+                        
                     except Exception as e:
-                        logger.exception(f"❌ خطای پیش‌بینی نشده در ارسال به {subscription.user.telegram
+                        logger.error(f"❌ خطا در ارسال به {subscription.user.telegram_id}: {e}")
+                        failed_count += 1
+                        
+                        # اگر کاربر ربات را block کرده، اشتراک را غیرفعال کن
+                        if "bot was blocked" in str(e).lower():
+                            subscription.is_active = False
+                            await session.commit()
+                            logger.info(f"🚫 کاربر {subscription.user.telegram_id} ربات را block کرده")
+                
+                logger.info(
+                    f"📢 اطلاع‌رسانی {db_doctor.name}: "
+                    f"✅ {sent_count} موفق، ❌ {failed_count} ناموفق"
+                )
+                
+                # ثبت لاگ در دیتابیس
+                appointment_log = AppointmentLog(
+                    doctor_id=db_doctor.id,
+                    appointment_date=appointments[0].start_datetime,
+                    appointment_count=len(appointments),
+                    notified_users=sent_count
+                )
+                session.add(appointment_log)
+                await session.commit()
+                
+        except Exception as e:
+            logger.error(f"❌ خطا در ارسال اطلاع‌رسانی: {e}")
     
     async def send_admin_message(self, message: str, admin_chat_id: int):
         """ارسال پیام به ادمین"""
@@ -241,19 +343,18 @@ async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appoin
     async def get_bot_stats(self) -> dict:
         """دریافت آمار ربات"""
         try:
-            with db_session() as session:
-                total_users = session.query(User).filter(User.is_active == True).count()
-                total_subscriptions = session.query(Subscription).filter(
-                    Subscription.is_active == True
-                ).count()
+            async with db_session(self.db_manager) as session:
+                total_users = await session.scalar(select(func.count(User.id)).filter(User.is_active == True))
+                total_subscriptions = await session.scalar(
+                    select(func.count(Subscription.id)).filter(Subscription.is_active == True)
+                )
                 
-                from src.database.models import AppointmentLog
-                from datetime import datetime, timedelta
+                from datetime import timedelta
                 
                 today = datetime.now().date()
-                appointments_today = session.query(AppointmentLog).filter(
-                    AppointmentLog.created_at >= today
-                ).count()
+                appointments_today = await session.scalar(
+                    select(func.count(AppointmentLog.id)).filter(AppointmentLog.created_at >= today)
+                )
                 
                 return {
                     'total_users': total_users,

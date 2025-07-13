@@ -2,11 +2,11 @@
 مدیریت دیتابیس
 """
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
-from contextlib import contextmanager
-from typing import Generator
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from .models import Base
 from src.utils.logger import get_logger
@@ -14,45 +14,45 @@ from src.utils.logger import get_logger
 logger = get_logger("Database")
 
 
+from src.utils.config import Config
+
 class DatabaseManager:
     """مدیر دیتابیس"""
     
     def __init__(self, database_url: str = None):
         if database_url is None:
-            # SQLite پیش‌فرض
-            database_url = "sqlite:///data/slothunter.db"
+            # خواندن از کانفیگ
+            database_url = Config().database_url
         
         self.database_url = database_url
         self.engine = None
         self.SessionLocal = None
-        
-        self._setup_database()
     
-    def _setup_database(self):
+    async def _setup_database(self):
         """تنظیم دیتابیس"""
         try:
             # ایجاد پوشه data در صورت عدم وجود
-            if self.database_url.startswith("sqlite:///"):
+            if self.database_url.startswith("sqlite+aiosqlite:///"):
                 from pathlib import Path
-                db_path = Path(self.database_url.replace("sqlite:///", "")).resolve()
+                db_path = Path(self.database_url.replace("sqlite+aiosqlite:///", "")).resolve()
                 db_path.parent.mkdir(parents=True, exist_ok=True)
             
             # ایجاد engine
-            self.engine = create_engine(
+            self.engine = create_async_engine(
                 self.database_url,
                 echo=False,  # تغییر به True برای debug
-                pool_pre_ping=True
             )
             
             # ایجاد session factory
             self.SessionLocal = sessionmaker(
-                autocommit=False,
-                autoflush=False,
-                bind=self.engine
+                bind=self.engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
             )
             
-            # ایجاد جداول دیگر با این روش انجام نمی‌شود
-            # Base.metadata.create_all(bind=self.engine)
+            # ایجاد جداول
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
             
             logger.info(f"✅ دیتابیس با موفقیت راه‌اندازی شد: {self.database_url}")
             
@@ -60,54 +60,34 @@ class DatabaseManager:
             logger.error(f"❌ خطا در راه‌اندازی دیتابیس: {e}")
             raise
     
-    def _get_session(self) -> Session:
-        """دریافت session جدید (متد داخلی)"""
+    def get_session(self) -> AsyncSession:
+        """دریافت session جدید"""
         if self.SessionLocal is None:
             raise RuntimeError("دیتابیس راه‌اندازی نشده است")
         return self.SessionLocal()
-
-    @contextmanager
-    def _session_scope(self) -> Generator[Session, None, None]:
-        """Context manager برای session (متد داخلی)"""
-        session = self._get_session()
+    
+    @asynccontextmanager
+    async def session_scope(self) -> AsyncGenerator[AsyncSession, None]:
+        """Context manager برای session"""
+        session = self.get_session()
         try:
             yield session
-            session.commit()
-        except SQLAlchemyError:
-            session.rollback()
-            logger.error("❌ خطای دیتابیس رخ داد. Rollback انجام شد.")
+            await session.commit()
+        except Exception:
+            await session.rollback()
             raise
         finally:
-            session.close()
+            await session.close()
     
-    def close(self):
+    async def close(self):
         """بستن اتصال دیتابیس"""
         if self.engine:
-            self.engine.dispose()
+            await self.engine.dispose()
             logger.info("🔒 اتصال دیتابیس بسته شد")
 
 
-# Instance سراسری
-_db_manager = None
-
-
-def init_database(database_url: str = None) -> DatabaseManager:
-    """راه‌اندازی دیتابیس"""
-    global _db_manager
-    _db_manager = DatabaseManager(database_url)
-    return _db_manager
-
-
-def get_db_manager() -> DatabaseManager:
-    """دریافت مدیر دیتابیس"""
-    global _db_manager
-    if _db_manager is None:
-        _db_manager = DatabaseManager()
-    return _db_manager
-
-
-@contextmanager
-def db_session() -> Generator[Session, None, None]:
+@asynccontextmanager
+async def db_session(db_manager: DatabaseManager) -> AsyncGenerator[AsyncSession, None]:
     """Context manager برای session دیتابیس"""
-    with get_db_manager()._session_scope() as session:
+    async with db_manager.session_scope() as session:
         yield session
