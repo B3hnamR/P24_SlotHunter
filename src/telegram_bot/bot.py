@@ -172,6 +172,60 @@ class SlotHunterBot:
         except Exception as e:
             logger.error(f"❌ خطا در توقف ربات: {e}")
     
+async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appointment]):
+        """ارسال اطلاع‌رسانی نوبت جدید با مدیریت خطای پیشرفته"""
+        try:
+            with db_session() as session:
+                # پیدا کردن دکتر در دیتابیس
+                from src.database.models import Doctor as DBDoctor
+                db_doctor = session.query(DBDoctor).filter(DBDoctor.slug == doctor.slug).first()
+
+                if not db_doctor:
+                    logger.warning(f"⚠️ دکتر {doctor.name} در دیتابیس یافت نشد، اطلاع‌رسانی لغو شد.")
+                    return
+
+                # دریافت مشترکین فعال
+                active_subscriptions = session.query(Subscription).filter(
+                    Subscription.doctor_id == db_doctor.id,
+                    Subscription.is_active == True
+                ).all()
+
+                if not active_subscriptions:
+                    logger.info(f"📭 هیچ مشترکی برای دکتر {doctor.name} وجود ندارد.")
+                    return
+
+                # ایجاد پیام
+                message = MessageFormatter.appointment_alert_message(doctor, appointments)
+                sent_count = 0
+                failed_count = 0
+
+                # ارسال پیام به تمام مشترکین
+                for subscription in active_subscriptions:
+                    try:
+                        await self.bot.send_message(
+                            chat_id=subscription.user.telegram_id,
+                            text=message,
+                            parse_mode='Markdown',
+                            disable_web_page_preview=True
+                        )
+                        sent_count += 1
+                        await asyncio.sleep(0.1)  # جلوگیری از Rate Limit
+
+                    except Forbidden:
+                        logger.warning(f"🚫 کاربر {subscription.user.telegram_id} ربات را بلاک کرده. اشتراک غیرفعال می‌شود.")
+                        subscription.is_active = False
+                        session.commit()
+                        failed_count += 1
+                    except BadRequest as e:
+                        logger.error(f"❌ خطای BadRequest برای کاربر {subscription.user.telegram_id}: {e}. اشتراک غیرفعال می‌شود.")
+                        subscription.is_active = False
+                        session.commit()
+                        failed_count += 1
+                    except (TimedOut, NetworkError) as e:
+                        logger.warning(f"⚠️ خطای شبکه در ارسال به {subscription.user.telegram_id}: {e}. این پیام ارسال نشد.")
+                        failed_count += 1
+                    except Exception as e:
+                        logger.exception(f"❌ خطای پیش‌بینی نشده در ارسال به {subscription.user.telegram
     
     async def send_admin_message(self, message: str, admin_chat_id: int):
         """ارسال پیام به ادمین"""
