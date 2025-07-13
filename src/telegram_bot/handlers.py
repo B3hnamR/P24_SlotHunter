@@ -4,6 +4,8 @@ Handler های ربات تلگرام
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from telegram.error import TelegramError
 from typing import List
 
 from src.database.database import db_session
@@ -36,7 +38,12 @@ class TelegramHandlers:
                         last_name=user.last_name
                     )
                     session.add(db_user)
-                    logger.info(f"👤 کاربر جدید ثبت شد: {user.first_name} (@{user.username})")
+                    logger.info(
+                        "👤 کاربر جدید ثبت شد: %s (@%s)",
+                        user.first_name,
+                        user.username,
+                        extra={'telegram_id': user.id}
+                    )
                 else:
                     # به‌روزرسانی اطلاعات
                     db_user.username = user.username
@@ -49,9 +56,15 @@ class TelegramHandlers:
             # ارسال پیام خوش‌آمدگویی
             welcome_text = MessageFormatter.welcome_message(user.first_name)
             await update.message.reply_text(welcome_text, parse_mode='Markdown')
-            
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در دستور start: {e}")
+            await update.message.reply_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور start: {e}")
+            # ممکن است نیازی به پاسخ به کاربر نباشد
         except Exception as e:
-            logger.error(f"❌ خطا در دستور start: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور start: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -60,8 +73,10 @@ class TelegramHandlers:
         try:
             help_text = MessageFormatter.help_message()
             await update.message.reply_text(help_text, parse_mode='Markdown')
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور help: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در دستور help: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور help: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -93,9 +108,14 @@ class TelegramHandlers:
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
-                
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در دستور doctors: {e}")
+            await update.message.reply_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور doctors: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در دستور doctors: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور doctors: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -153,9 +173,14 @@ class TelegramHandlers:
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
-                
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در دستور subscribe: {e}")
+            await update.message.reply_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور subscribe: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در دستور subscribe: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور subscribe: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -200,9 +225,14 @@ class TelegramHandlers:
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
-                
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در دستور unsubscribe: {e}")
+            await update.message.reply_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور unsubscribe: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در دستور unsubscribe: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور unsubscribe: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -225,9 +255,14 @@ class TelegramHandlers:
                 
                 status_text = MessageFormatter.subscription_status_message(active_subscriptions)
                 await update.message.reply_text(status_text, parse_mode='Markdown')
-                
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در دستور status: {e}")
+            await update.message.reply_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در دستور status: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در دستور status: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در دستور status: {e}")
             await update.message.reply_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -246,9 +281,14 @@ class TelegramHandlers:
                 await TelegramHandlers._handle_subscribe(query, data, user_id)
             elif data.startswith("unsubscribe_"):
                 await TelegramHandlers._handle_unsubscribe(query, data, user_id)
-            
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در callback: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در callback: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در callback: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در callback: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -326,7 +366,12 @@ class TelegramHandlers:
             success_text = MessageFormatter.subscription_success_message(doctor)
             await query.edit_message_text(success_text, parse_mode='Markdown')
             
-            logger.info(f"📝 اشتراک جدید: {user.full_name} -> {doctor.name}")
+            logger.info(
+                "📝 اشتراک جدید: %s -> %s",
+                user.full_name,
+                doctor.name,
+                extra={'user_id': user.id, 'doctor_id': doctor.id}
+            )
     
     @staticmethod
     async def _handle_unsubscribe(query, data, user_id):
@@ -367,4 +412,9 @@ class TelegramHandlers:
             success_text = MessageFormatter.unsubscription_success_message(doctor)
             await query.edit_message_text(success_text, parse_mode='Markdown')
             
-            logger.info(f"🗑️ لغو اشتراک: {user.full_name} -> {doctor.name}")
+            logger.info(
+                "🗑️ لغو اشتراک: %s -> %s",
+                user.full_name,
+                doctor.name,
+                extra={'user_id': user.id, 'doctor_id': doctor.id}
+            )

@@ -7,7 +7,7 @@ from typing import Dict, List, Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.api.models import Doctor
+# from src.api.models import Doctor # وابستگی حذف شد
 
 
 class Config:
@@ -144,30 +144,20 @@ class Config:
     def log_file(self) -> str:
         """مسیر فایل لاگ"""
         return self._config.get('logging', {}).get('file', 'logs/slothunter.log')
+
+    @property
+    def celery_broker_url(self) -> str:
+        """URL برای Celery broker (Redis)"""
+        return os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+
+    @property
+    def celery_result_backend(self) -> str:
+        """URL برای Celery result backend (Redis)"""
+        return os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
-    def get_doctors(self) -> List[Doctor]:
-        """دریافت لیست دکترها"""
-        doctors = []
-        for doctor_data in self._config.get('doctors', []):
-            try:
-                doctor = Doctor(
-                    name=doctor_data['name'],
-                    slug=doctor_data['slug'],
-                    center_id=doctor_data['center_id'],
-                    service_id=doctor_data['service_id'],
-                    user_center_id=doctor_data['user_center_id'],
-                    terminal_id=doctor_data['terminal_id'],
-                    specialty=doctor_data.get('specialty', ''),
-                    center_name=doctor_data.get('center_name', ''),
-                    center_address=doctor_data.get('center_address', ''),
-                    center_phone=doctor_data.get('center_phone', ''),
-                    is_active=doctor_data.get('is_active', True)
-                )
-                doctors.append(doctor)
-            except KeyError as e:
-                print(f"❌ خطا در بارگذاری دکتر: فیلد {e} موجود نیست")
-        
-        return doctors
+    def get_doctors_config(self) -> List[Dict[str, Any]]:
+        """دریافت تنظیمات دکترها به صورت دیکشنری"""
+        return self._config.get('doctors', [])
     
     def reload(self):
         """بارگذاری مجدد تنظیمات"""
