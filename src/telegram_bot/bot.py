@@ -43,8 +43,6 @@ class SlotHunterBot:
         app.add_handler(CommandHandler("start", self.handlers.start_command))
         app.add_handler(CommandHandler("help", self.handlers.help_command))
         app.add_handler(CommandHandler("doctors", self.handlers.doctors_command))
-        app.add_handler(CommandHandler("status", self.handlers.status_command))
-        app.add_handler(CommandHandler("admin", self.handlers.admin_command))
         
         # Message handler for persistent menu
         app.add_handler(MessageHandler(
