@@ -3,7 +3,9 @@ Clean Callback handlers for inline keyboard buttons - Professional Version
 """
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import SQLAlchemyError
+from telegram.error import TelegramError
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
@@ -92,17 +94,18 @@ class CallbackHandlers:
                     ]])
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در callback query: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در callback query: {e}")
+            # معمولا نیازی به پاسخ به کاربر نیست، چون ممکن است پیام قبلا حذف شده باشد
         except Exception as e:
-            logger.error(f"❌ خطا در مدیریت callback: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در callback query: {e}")
             try:
-                await query.edit_message_text(
-                    MessageFormatter.error_message("خطا در پردازش درخواست"),
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
-                    ]])
-                )
-            except:
-                pass
+                await query.edit_message_text(MessageFormatter.error_message())
+            except TelegramError:
+                pass  # اگر ویرایش پیام هم خطا داد، کاری نمی‌توان کرد
     
     @staticmethod
     async def _handle_back_to_main(query):
@@ -159,8 +162,13 @@ class CallbackHandlers:
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در بازگشت به لیست دکترها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در بازگشت به لیست دکترها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در بازگشت به لیست دکترها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در بازگشت به لیست دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -225,8 +233,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش اطلاعات دکتر: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش اطلاعات دکتر: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش اطلاعات دکتر: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش اطلاعات دکتر: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -300,11 +313,21 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
+
+                logger.info(
+                    "📝 اشتراک جدید: %s -> %s",
+                    user.full_name,
+                    doctor.name,
+                    extra={'user_id': user.id, 'doctor_id': doctor.id}
+                )
                 
-                logger.info(f"📝 اشتراک جدید: {user.full_name} -> {doctor.name}")
-                
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در اشتراک: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در اشتراک: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در اشتراک: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در اشتراک: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -369,11 +392,21 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
+
+                logger.info(
+                    "🗑️ لغو اشتراک: %s -> %s",
+                    user.full_name,
+                    doctor.name,
+                    extra={'user_id': user.id, 'doctor_id': doctor.id}
+                )
                 
-                logger.info(f"🗑️ لغو اشتراک: {user.full_name} -> {doctor.name}")
-                
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در لغو اشتراک: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در لغو اشتراک: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در لغو اشتراک: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در لغو اشتراک: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -410,8 +443,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش لینک وب‌سایت: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش لینک وب‌سایت: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش لینک وب‌سایت: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش لینک وب‌سایت: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -486,8 +524,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش آمار دکتر: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار دکتر: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش آمار دکتر: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار دکتر: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -561,8 +604,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش آمار اشتراک‌ها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار اشتراک‌ها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش آمار اشتراک‌ها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -623,8 +671,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در اشتراک جدید: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در اشتراک جدید: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در اشتراک جدید: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در اشتراک جدید: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -684,8 +737,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در بروزرسانی وضعیت: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در بروزرسانی وضعیت: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در بروزرسانی وضعیت: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در بروزرسانی وضعیت: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -762,8 +820,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش آمار تفصیلی: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش آمار تفصیلی: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش آمار تفصیلی: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش آمار تفصیلی: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -809,8 +872,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش وضعیت سیستم: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش وضعیت سیستم: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش وضعیت سیستم: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش وضعیت سیستم: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -843,8 +911,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش لیست دکترها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش لیست دکترها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش لیست دکترها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش لیست دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -852,7 +925,17 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         """نمایش اشتراک‌ها از callback"""
         try:
             with db_session() as session:
-                user = session.query(User).filter(User.telegram_id == user_id).first()
+                # بهینه‌سازی کوئری با joinedload برای جلوگیری از N+1
+                user = (
+                    session.query(User)
+                    .options(
+                        joinedload(User.subscriptions)
+                        .joinedload(Subscription.doctor)
+                    )
+                    .filter(User.telegram_id == user_id)
+                    .first()
+                )
+
                 if not user:
                     await query.edit_message_text(
                         "❌ کاربر یافت نشد. لطفاً دوباره /start کنید.",
@@ -893,8 +976,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در نمایش اشتراک‌ها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در نمایش اشتراک‌ها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در نمایش اشتراک‌ها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در نمایش اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -963,8 +1051,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در مدیریت دکترها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در مدیریت دکترها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در مدیریت دکترها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در مدیریت دکترها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -1016,8 +1109,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=reply_markup
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در داشبورد ادمین: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در داشبورد ادمین: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در داشبورد ادمین: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در داشبورد ادمین: {e}")
             await query.edit_message_text(MessageFormatter.error_message())
     
     @staticmethod
@@ -1093,6 +1191,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     reply_markup=keyboard
                 )
                 
+        except SQLAlchemyError as e:
+            logger.error(f"❌ خطای دیتابیس در بروزرسانی اشتراک‌ها: {e}")
+            await query.edit_message_text(MessageFormatter.db_error_message())
+        except TelegramError as e:
+            logger.warning(f"⚠️ خطای تلگرام در بروزرسانی اشتراک‌ها: {e}")
         except Exception as e:
-            logger.error(f"❌ خطا در بروزرسانی اشتراک‌ها: {e}")
+            logger.exception(f"❌ خطای پیش‌بینی نشده در بروزرسانی اشتراک‌ها: {e}")
             await query.edit_message_text(MessageFormatter.error_message())

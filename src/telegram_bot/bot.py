@@ -3,7 +3,10 @@
 """
 import asyncio
 from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler, ConversationHandler,
+    MessageHandler, filters, ContextTypes, Defaults, AIORateLimiter
+)
 from typing import List
 
 from src.telegram_bot.handlers import TelegramHandlers
@@ -16,6 +19,7 @@ from src.database.models import User, Subscription, Doctor, AppointmentLog
 from src.api.models import Appointment
 from src.utils.logger import get_logger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import Forbidden, BadRequest, TimedOut, NetworkError
 
 logger = get_logger("TelegramBot")
 
@@ -32,8 +36,18 @@ class SlotHunterBot:
     async def initialize(self):
         """راه‌اندازی ربات"""
         try:
-            # ایجاد Application
-            self.application = Application.builder().token(self.token).build()
+            # تنظیمات پیش‌فرض با Rate Limiter
+            # این کار باعث می‌شود تا هر کاربر نتواند بیش از حد درخواست ارسال کند
+            defaults = Defaults(
+                rate_limiter=AIORateLimiter(
+                    max_retries=3,  # حداکثر تلاش مجدد در صورت خطا
+                    time_period=10  # بازه زمانی برای محدودیت (مثلا ۱۰ ثانیه)
+                ),
+                block=False # جلوگیری از بلاک شدن کامل ربات
+            )
+
+            # ایجاد Application با تنظیمات جدید
+            self.application = Application.builder().token(self.token).defaults(defaults).build()
             
             # تنظیم handlers
             self._setup_handlers()
@@ -199,16 +213,27 @@ class SlotHunterBot:
                         
                         # کمی صبر برای جلوگیری از rate limiting
                         await asyncio.sleep(0.1)
-                        
-                    except Exception as e:
-                        logger.error(f"❌ خطا در ارسال به {subscription.user.telegram_id}: {e}")
+
+                    except Forbidden:
+                        # کاربر ربات را بلاک کرده است
+                        logger.warning(f"🚫 کاربر {subscription.user.telegram_id} ربات را بلاک کرده. اشتراک غیرفعال می‌شود.")
+                        subscription.is_active = False
+                        session.commit()
                         failed_count += 1
-                        
-                        # اگر کاربر ربات را block کرده، اشتراک را غیرفعال کن
-                        if "bot was blocked" in str(e).lower():
-                            subscription.is_active = False
-                            session.commit()
-                            logger.info(f"🚫 کاربر {subscription.user.telegram_id} ربات را block کرده")
+                    except BadRequest as e:
+                        # خطای مربوط به درخواست نامعتبر (مثلا چت یافت نشد)
+                        logger.error(f"❌ خطای BadRequest برای کاربر {subscription.user.telegram_id}: {e}. اشتراک غیرفعال می‌شود.")
+                        subscription.is_active = False
+                        session.commit()
+                        failed_count += 1
+                    except (TimedOut, NetworkError) as e:
+                        # خطاهای شبکه یا تایم‌اوت، نیاز به تلاش مجدد دارد (در اینجا فقط لاگ می‌کنیم)
+                        logger.warning(f"⚠️ خطای شبکه در ارسال به {subscription.user.telegram_id}: {e}. این پیام ارسال نشد.")
+                        failed_count += 1
+                    except Exception as e:
+                        # سایر خطاهای پیش‌بینی نشده
+                        logger.exception(f"❌ خطای پیش‌بینی نشده در ارسال به {subscription.user.telegram_id}: {e}")
+                        failed_count += 1
                 
                 logger.info(
                     f"📢 اطلاع‌رسانی {doctor.name}: "
