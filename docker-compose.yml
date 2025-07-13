@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    command: python src/main.py
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:////app/data/slothunter.db
+
+  worker:
+    build: .
+    command: celery -A src.celery_app worker -l info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:////app/data/slothunter.db
+
+  beat:
+    build: .
+    command: celery -A src.celery_app beat -l info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:////app/data/slothunter.db

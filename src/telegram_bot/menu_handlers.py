@@ -11,6 +11,7 @@ from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription, AppointmentLog
 from src.telegram_bot.user_roles import user_role_manager, UserRole
 from src.telegram_bot.messages import MessageFormatter
+from src.telegram_bot.constants import MainMenuCallbacks, CallbackPrefix
 from src.utils.logger import get_logger
 
 logger = get_logger("MenuHandlers")
@@ -76,7 +77,7 @@ class MenuHandlers:
         
         # دکمه بازگشت
         keyboard.append([
-            InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")
+            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data=MainMenuCallbacks.BACK_TO_MAIN)
         ])
         
         return InlineKeyboardMarkup(keyboard)
@@ -96,9 +97,9 @@ class MenuHandlers:
             ])
         
         keyboard.extend([
-            [InlineKeyboardButton("🔗 مشاهده در سایت", callback_data=f"view_website_{doctor_id}")],
-            [InlineKeyboardButton("📊 آمار نوبت‌ها", callback_data=f"stats_{doctor_id}")],
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_doctors")]
+            [InlineKeyboardButton("🔗 مشاهده در سایت", callback_data=f"{CallbackPrefix.VIEW_WEBSITE}{doctor_id}")],
+            [InlineKeyboardButton("📊 آمار نوبت‌ها", callback_data=f"{CallbackPrefix.STATS}{doctor_id}")],
+            [InlineKeyboardButton("🔙 بازگشت به لیست دکترها", callback_data=MainMenuCallbacks.BACK_TO_DOCTORS)]
         ])
         
         return InlineKeyboardMarkup(keyboard)

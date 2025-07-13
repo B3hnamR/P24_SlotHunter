@@ -51,8 +51,8 @@ class DatabaseManager:
                 bind=self.engine
             )
             
-            # ایجاد جداول
-            Base.metadata.create_all(bind=self.engine)
+            # ایجاد جداول دیگر با این روش انجام نمی‌شود
+            # Base.metadata.create_all(bind=self.engine)
             
             logger.info(f"✅ دیتابیس با موفقیت راه‌اندازی شد: {self.database_url}")
             

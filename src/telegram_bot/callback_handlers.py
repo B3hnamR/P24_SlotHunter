@@ -13,6 +13,7 @@ from src.database.database import db_session
 from src.database.models import User, Doctor, Subscription, AppointmentLog
 from src.telegram_bot.messages import MessageFormatter
 from src.telegram_bot.menu_handlers import MenuHandlers
+from src.telegram_bot.constants import CallbackPrefix, AdminCallback, MainMenuCallbacks
 from src.utils.logger import get_logger
 
 logger = get_logger("CallbackHandlers")
@@ -33,10 +34,10 @@ class CallbackHandlers:
             
             # Skip callbacks that should be handled by ConversationHandler
             conversation_callbacks = [
-                "admin_add_doctor",
-                "admin_set_interval", 
-                "confirm_add_doctor",
-                "cancel_add_doctor"
+                AdminCallback.ADD_DOCTOR,
+                AdminCallback.SET_INTERVAL,
+                AdminCallback.CONFIRM_ADD_DOCTOR,
+                AdminCallback.CANCEL_ADD_DOCTOR
             ]
             
             if data in conversation_callbacks:
@@ -45,45 +46,45 @@ class CallbackHandlers:
                 return
             
             # مدیریت callback های اصلی
-            if data == "back_to_main":
+            if data == MainMenuCallbacks.BACK_TO_MAIN:
                 await CallbackHandlers._handle_back_to_main(query)
-            elif data == "back_to_doctors":
+            elif data == MainMenuCallbacks.BACK_TO_DOCTORS:
                 await CallbackHandlers._handle_back_to_doctors(query)
-            elif data.startswith("doctor_info_"):
+            elif data.startswith(CallbackPrefix.DOCTOR_INFO):
                 await CallbackHandlers._handle_doctor_info(query, data, user_id)
-            elif data.startswith("subscribe_"):
+            elif data.startswith(CallbackPrefix.SUBSCRIBE):
                 await CallbackHandlers._handle_subscribe(query, data, user_id)
-            elif data.startswith("unsubscribe_"):
+            elif data.startswith(CallbackPrefix.UNSUBSCRIBE):
                 await CallbackHandlers._handle_unsubscribe(query, data, user_id)
-            elif data.startswith("view_website_"):
+            elif data.startswith(CallbackPrefix.VIEW_WEBSITE):
                 await CallbackHandlers._handle_view_website(query, data)
-            elif data.startswith("stats_"):
+            elif data.startswith(CallbackPrefix.STATS):
                 await CallbackHandlers._handle_doctor_stats(query, data, user_id)
-            elif data.startswith("settings_"):
+            elif data.startswith(CallbackPrefix.SETTINGS):
                 await CallbackHandlers._handle_settings(query, data, user_id)
-            elif data == "subscription_stats":
+            elif data == MainMenuCallbacks.SUBSCRIPTION_STATS:
                 await CallbackHandlers._handle_subscription_stats(query, user_id)
-            elif data == "new_subscription":
+            elif data == MainMenuCallbacks.NEW_SUBSCRIPTION:
                 await CallbackHandlers._handle_new_subscription(query, user_id)
-            elif data == "refresh_status":
+            elif data == MainMenuCallbacks.REFRESH_STATUS:
                 await CallbackHandlers._handle_refresh_status(query, user_id)
-            elif data == "detailed_stats":
+            elif data == MainMenuCallbacks.DETAILED_STATS:
                 await CallbackHandlers._handle_detailed_stats(query, user_id)
-            elif data == "system_status":
+            elif data == MainMenuCallbacks.SYSTEM_STATUS:
                 await CallbackHandlers._handle_system_status(query)
-            elif data == "show_doctors":
+            elif data == MainMenuCallbacks.SHOW_DOCTORS:
                 await CallbackHandlers._handle_show_doctors(query)
-            elif data == "show_subscriptions":
+            elif data == MainMenuCallbacks.SHOW_SUBSCRIPTIONS:
                 await CallbackHandlers._handle_show_subscriptions(query, user_id)
-            elif data == "refresh_all_subscriptions":
+            elif data == MainMenuCallbacks.REFRESH_ALL_SUBSCRIPTIONS:
                 await CallbackHandlers._handle_refresh_all_subscriptions(query, user_id)
             # Admin callbacks
             elif data.startswith("admin_"):
                 await CallbackHandlers._handle_admin_callbacks(query, data, user_id)
-            elif data.startswith("toggle_doctor_"):
+            elif data.startswith(CallbackPrefix.TOGGLE_DOCTOR):
                 from src.telegram_bot.admin_handlers import TelegramAdminHandlers
                 await TelegramAdminHandlers.toggle_doctor_status(update, context)
-            elif data == "back_to_admin_panel":
+            elif data == AdminCallback.BACK_TO_ADMIN_PANEL:
                 from src.telegram_bot.admin_handlers import TelegramAdminHandlers
                 await TelegramAdminHandlers.admin_panel(update, context)
             else:

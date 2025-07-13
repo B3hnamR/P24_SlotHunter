@@ -18,8 +18,12 @@ from src.utils.config import Config
 
 logger = get_logger("TelegramAdminHandlers")
 
-# States برای ConversationHandler
-ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL = range(3)
+from .constants import ConversationStates, AdminCallback
+
+# Define conversation states using the enum
+ADD_DOCTOR_LINK = ConversationStates.ADD_DOCTOR_LINK.value
+ADD_DOCTOR_CONFIRM = ConversationStates.ADD_DOCTOR_CONFIRM.value
+SET_CHECK_INTERVAL = ConversationStates.SET_CHECK_INTERVAL.value
 
 
 class TelegramAdminHandlers:
@@ -113,8 +117,10 @@ class TelegramAdminHandlers:
             return ADD_DOCTOR_LINK
 
         from src.api.parser import extract_doctor_info_from_url
+        from telegram.constants import ChatAction
 
         await update.message.reply_text("در حال استخراج اطلاعات دکتر... لطفاً صبر کنید.")
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
         
         doctor_info = extract_doctor_info_from_url(link)
         

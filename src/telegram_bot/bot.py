@@ -12,7 +12,8 @@ from typing import List
 from src.telegram_bot.handlers import TelegramHandlers
 from src.telegram_bot.menu_handlers import MenuHandlers
 from src.telegram_bot.callback_handlers import CallbackHandlers
-from src.telegram_bot.admin_handlers import TelegramAdminHandlers, ADD_DOCTOR_LINK, ADD_DOCTOR_CONFIRM, SET_CHECK_INTERVAL
+from src.telegram_bot.admin_handlers import TelegramAdminHandlers
+from src.telegram_bot.constants import AdminCallback, ConversationStates
 from src.telegram_bot.messages import MessageFormatter
 from src.database.database import db_session
 from src.database.models import User, Subscription, Doctor, AppointmentLog
@@ -69,24 +70,24 @@ class SlotHunterBot:
     def _setup_handlers(self):
         """تنظیم handler های ربات"""
         
-        # ConversationHandler برای افزودن دکتر
+        # ConversationHandler for adding a doctor
         add_doctor_conv = ConversationHandler(
-            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.start_add_doctor, pattern="^admin_add_doctor$")],
+            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.start_add_doctor, pattern=f"^{AdminCallback.ADD_DOCTOR}$")],
             states={
-                ADD_DOCTOR_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_doctor_link)],
-                ADD_DOCTOR_CONFIRM: [
-                    CallbackQueryHandler(TelegramAdminHandlers.confirm_add_doctor, pattern="^confirm_add_doctor$"),
-                    CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern="^cancel_add_doctor$")
+                ConversationStates.ADD_DOCTOR_LINK.value: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_doctor_link)],
+                ConversationStates.ADD_DOCTOR_CONFIRM.value: [
+                    CallbackQueryHandler(TelegramAdminHandlers.confirm_add_doctor, pattern=f"^{AdminCallback.CONFIRM_ADD_DOCTOR}$"),
+                    CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern=f"^{AdminCallback.CANCEL_ADD_DOCTOR}$")
                 ]
             },
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
-        
-        # ConversationHandler برای تنظیم زمان بررسی
+
+        # ConversationHandler for setting the check interval
         set_interval_conv = ConversationHandler(
-            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.set_check_interval, pattern="^admin_set_interval$")],
+            entry_points=[CallbackQueryHandler(TelegramAdminHandlers.set_check_interval, pattern=f"^{AdminCallback.SET_INTERVAL}$")],
             states={
-                SET_CHECK_INTERVAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_check_interval)]
+                ConversationStates.SET_CHECK_INTERVAL.value: [MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramAdminHandlers.process_check_interval)]
             },
             fallbacks=[CommandHandler("cancel", TelegramAdminHandlers.cancel_conversation)]
         )
@@ -171,36 +172,34 @@ class SlotHunterBot:
         except Exception as e:
             logger.error(f"❌ خطا در توقف ربات: {e}")
     
-    async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appointment]):
-        """ارسال اطلاع‌رسانی نوبت جدید"""
+async def send_appointment_alert(self, doctor: Doctor, appointments: List[Appointment]):
+        """ارسال اطلاع‌رسانی نوبت جدید با مدیریت خطای پیشرفته"""
         try:
-            # دری��فت مشترکین فعال این دکتر
             with db_session() as session:
                 # پیدا کردن دکتر در دیتابیس
                 from src.database.models import Doctor as DBDoctor
                 db_doctor = session.query(DBDoctor).filter(DBDoctor.slug == doctor.slug).first()
-                
+
                 if not db_doctor:
-                    logger.warning(f"⚠️ دکتر {doctor.name} در دیتا��یس یافت نشد")
+                    logger.warning(f"⚠️ دکتر {doctor.name} در دیتابیس یافت نشد، اطلاع‌رسانی لغو شد.")
                     return
-                
+
                 # دریافت مشترکین فعال
                 active_subscriptions = session.query(Subscription).filter(
                     Subscription.doctor_id == db_doctor.id,
                     Subscription.is_active == True
                 ).all()
-                
+
                 if not active_subscriptions:
-                    logger.info(f"📭 هیچ مشترکی برای {doctor.name} وجود ندارد")
+                    logger.info(f"📭 هیچ مشترکی برای دکتر {doctor.name} وجود ندارد.")
                     return
-                
+
                 # ایجاد پیام
                 message = MessageFormatter.appointment_alert_message(doctor, appointments)
-                
-                # ارسال به تمام مشترکین
                 sent_count = 0
                 failed_count = 0
-                
+
+                # ارسال پیام به تمام مشترکین
                 for subscription in active_subscriptions:
                     try:
                         await self.bot.send_message(
@@ -210,51 +209,23 @@ class SlotHunterBot:
                             disable_web_page_preview=True
                         )
                         sent_count += 1
-                        
-                        # کمی صبر برای جلوگیری از rate limiting
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.1)  # جلوگیری از Rate Limit
 
                     except Forbidden:
-                        # کاربر ربات را بلاک کرده است
                         logger.warning(f"🚫 کاربر {subscription.user.telegram_id} ربات را بلاک کرده. اشتراک غیرفعال می‌شود.")
                         subscription.is_active = False
                         session.commit()
                         failed_count += 1
                     except BadRequest as e:
-                        # خطای مربوط به درخواست نامعتبر (مثلا چت یافت نشد)
                         logger.error(f"❌ خطای BadRequest برای کاربر {subscription.user.telegram_id}: {e}. اشتراک غیرفعال می‌شود.")
                         subscription.is_active = False
                         session.commit()
                         failed_count += 1
                     except (TimedOut, NetworkError) as e:
-                        # خطاهای شبکه یا تایم‌اوت، نیاز به تلاش مجدد دارد (در اینجا فقط لاگ می‌کنیم)
                         logger.warning(f"⚠️ خطای شبکه در ارسال به {subscription.user.telegram_id}: {e}. این پیام ارسال نشد.")
                         failed_count += 1
                     except Exception as e:
-                        # سایر خطاهای پیش‌بینی نشده
-                        logger.exception(f"❌ خطای پیش‌بینی نشده در ارسال به {subscription.user.telegram_id}: {e}")
-                        failed_count += 1
-                
-                logger.info(
-                    f"📢 اطلاع‌رسانی {doctor.name}: "
-                    f"✅ {sent_count} موفق، ❌ {failed_count} ناموفق"
-                )
-                
-                # ثبت لاگ در دیتابیس
-                from src.database.models import AppointmentLog
-                from datetime import datetime
-                
-                appointment_log = AppointmentLog(
-                    doctor_id=db_doctor.id,
-                    appointment_date=appointments[0].start_datetime,
-                    appointment_count=len(appointments),
-                    notified_users=sent_count
-                )
-                session.add(appointment_log)
-                session.commit()
-                
-        except Exception as e:
-            logger.error(f"❌ خطا در ارسال اطلاع‌رسانی: {e}")
+                        logger.exception(f"❌ خطای پیش‌بینی نشده در ارسال به {subscription.user.telegram
     
     async def send_admin_message(self, message: str, admin_chat_id: int):
         """ارسال پیام به ادمین"""
