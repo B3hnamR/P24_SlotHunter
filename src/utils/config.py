@@ -5,8 +5,32 @@ import os
 import yaml
 from typing import Dict, List, Any
 from pathlib import Path
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field, ValidationError
+
+# Safe import for optional dependencies
+try:
+    from dotenv import load_dotenv
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+    def load_dotenv():
+        pass
+
+try:
+    from pydantic import BaseModel, Field, ValidationError
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
+    # Fallback classes
+    class BaseModel:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+    
+    def Field(default=None, **kwargs):
+        return default
+    
+    class ValidationError(Exception):
+        pass
 
 from typing import TYPE_CHECKING
 from src.utils.logger import get_logger

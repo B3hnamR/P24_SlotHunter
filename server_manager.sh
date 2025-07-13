@@ -1014,6 +1014,21 @@ else
         full_system_setup
         echo -e "${YELLOW}Press Enter to continue to main menu...${NC}"
         read
+    else
+        # Check dependencies even if venv exists
+        echo -e "${BLUE}🔍 Checking dependencies...${NC}"
+        if [ -f "check_dependencies.py" ]; then
+            source "$VENV_DIR/bin/activate" 2>/dev/null || true
+            python check_dependencies.py
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}❌ Dependency check failed${NC}"
+                echo -e "${YELLOW}Running setup to fix issues...${NC}"
+                full_system_setup
+                echo -e "${YELLOW}Press Enter to continue...${NC}"
+                read
+            fi
+            deactivate 2>/dev/null || true
+        fi
     fi
     
     # Run main menu
