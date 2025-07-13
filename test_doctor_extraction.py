@@ -259,8 +259,22 @@ async def main():
     # URL نمونه - شما URL واقعی وارد کنید
     test_urls = [
         "https://www.paziresh24.com/dr/دکتر-سیدمحمدمجتبی-موسوی-0/",
+        "https://www.paziresh24.com/dr/دکتر-محمدرضا-کریمی-1/",
+        "https://www.paziresh24.com/dr/دکتر-فاطمه-احمدی-2/",
         # شما URL های بیشتری اضافه کنید
     ]
+    
+    print("💡 نکته: اگر URL خاصی دارید، آن را به جای URL های نمونه قرار دهید")
+    print("📝 یا می‌توانید URL را به عنوان آرگومان وارد کنید:")
+    print("   python test_doctor_extraction.py 'https://www.paziresh24.com/dr/doctor-name/'")
+    
+    # بررسی آرگومان خط فرمان
+    import sys
+    if len(sys.argv) > 1:
+        custom_url = sys.argv[1]
+        if custom_url.startswith('http'):
+            test_urls = [custom_url]
+            print(f"🎯 استفاده از URL سفارشی: {custom_url}")
     
     extractor = DoctorInfoExtractor()
     
