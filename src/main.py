@@ -111,7 +111,7 @@ class SlotHunter:
                 if active_doctors:
                     self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
                     
-                    # بررسی همه دکترها
+                    # بررسی هم�� دکترها
                     for doctor in active_doctors:
                         # فقط دکترهایی که مشترک دارند را بررسی کن
                         active_subscriptions = [sub for sub in doctor.subscriptions if sub.is_active]
@@ -150,7 +150,7 @@ class SlotHunter:
                 
                 # نمایش در لاگ
                 for apt in appointments[:3]:
-                    self.logger.info(f"  ⏰ {apt.start_datetime.strftime('%Y/%m/%d %H:%M')}")
+                    self.logger.info(f"  ⏰ {apt.time_str}")
                 
                 # اطلاع‌رسانی با ربات تلگرام
                 if self.telegram_bot:

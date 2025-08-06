@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 class EnhancedPazireshAPI:
     """کلاینت پیشرفته API پذیرش۲۴"""
 
-    def __init__(self, timeout: int = 10, base_url: str = None):
+    def __init__(self, doctor: Doctor, client: httpx.AsyncClient = None, timeout: int = 10, base_url: str = None):
+        self.doctor = doctor
+        self.client = client
         self.timeout = timeout
         self.BASE_URL = base_url or "https://apigw.paziresh24.com/booking/v2"
         self.logger = logging.getLogger("EnhancedPazireshAPI")
@@ -35,15 +37,15 @@ class EnhancedPazireshAPI:
         random_part = str(random.randint(10000000, 99999999))
         return f"clinic-{timestamp}.{random_part}"
 
-    async def get_doctor_appointments(self, doctor: Doctor, days_ahead: int = 7) -> List[Appointment]:
+    async def get_all_available_appointments(self, days_ahead: int = 7) -> List[Appointment]:
         """
         دریافت تمام نوبت‌های موجود برای دکتر (تمام مراکز و سرویس‌ها)
         """
         try:
-            self.logger.info(f"🔍 شروع بررسی نوبت‌های {doctor.name}")
+            self.logger.info(f"🔍 شروع بررسی نوبت‌های {self.doctor.name}")
             all_appointments = []
             
-            for center in doctor.centers:
+            for center in self.doctor.centers:
                 if not center.is_active:
                     continue
                     
@@ -53,12 +55,12 @@ class EnhancedPazireshAPI:
                     
                     try:
                         appointments = await self._get_service_appointments(
-                            doctor, center, service, days_ahead
+                            center, service, days_ahead
                         )
                         
-                        # اضافه کردن اطلاعات مرکز �� سرویس به نوبت‌ها
+                        # اضافه کردن اطلاعات مرکز و سرویس به نوبت‌ها
                         for apt in appointments:
-                            apt.doctor_slug = doctor.slug
+                            apt.doctor_slug = self.doctor.slug
                             apt.center_name = center.center_name
                             apt.service_name = service.service_name
                             apt.center_id = center.center_id
@@ -70,14 +72,14 @@ class EnhancedPazireshAPI:
                         self.logger.warning(f"⚠️ خطا در دریافت نوبت‌های {center.center_name} - {service.service_name}: {e}")
                         continue
             
-            self.logger.info(f"✅ {len(all_appointments)} نوبت موجود پیدا شد برای {doctor.name}")
+            self.logger.info(f"✅ {len(all_appointments)} نوبت موجود پیدا شد برای {self.doctor.name}")
             return all_appointments
             
         except Exception as e:
-            self.logger.error(f"❌ خطا در دریافت نوبت‌های {doctor.name}: {e}")
+            self.logger.error(f"❌ خطا در دریافت نوبت‌های {self.doctor.name}: {e}")
             return []
 
-    async def _get_service_appointments(self, doctor: Doctor, center: DoctorCenter, 
+    async def _get_service_appointments(self, center: DoctorCenter, 
                                       service: DoctorService, days_ahead: int) -> List[Appointment]:
         """دریافت نوبت‌های یک سرویس خاص"""
         try:
@@ -112,7 +114,7 @@ class EnhancedPazireshAPI:
 
     async def _get_free_days(self, center: DoctorCenter, service: DoctorService, 
                            terminal_id: str) -> APIResponse:
-        """دریافت روزهای موجود"""
+        """دریا��ت روزهای موجود"""
         headers = {
             **self.base_headers,
             'center_id': center.center_id,
@@ -129,21 +131,30 @@ class EnhancedPazireshAPI:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
+            # استفاده از client مشترک یا ایجاد client جدید
+            if self.client:
+                response = await self.client.post(
                     f"{self.BASE_URL}/getFreeDays",
                     data=data,
                     headers=headers
                 )
-                response.raise_for_status()
-                result = response.json()
-                
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
-                
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/getFreeDays",
+                        data=data,
+                        headers=headers
+                    )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
+            
         except httpx.RequestError as e:
             return APIResponse(
                 status=0,
@@ -175,32 +186,41 @@ class EnhancedPazireshAPI:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
+            # استفاده از client مشترک یا ایجاد client جدید
+            if self.client:
+                response = await self.client.post(
                     f"{self.BASE_URL}/getFreeTurns",
                     data=data,
                     headers=headers
                 )
-                response.raise_for_status()
-                result = response.json()
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/getFreeTurns",
+                        data=data,
+                        headers=headers
+                    )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get('status') == 1:
+                appointments = []
+                for apt_data in result.get('result', []):
+                    appointment = Appointment(
+                        from_time=apt_data['from'],
+                        to_time=apt_data['to'],
+                        workhour_turn_num=apt_data['workhour_turn_num']
+                    )
+                    appointments.append(appointment)
                 
-                if result.get('status') == 1:
-                    appointments = []
-                    for apt_data in result.get('result', []):
-                        appointment = Appointment(
-                            from_time=apt_data['from'],
-                            to_time=apt_data['to'],
-                            workhour_turn_num=apt_data['workhour_turn_num']
-                        )
-                        appointments.append(appointment)
-                    
-                    if appointments:
-                        date_str = datetime.fromtimestamp(day_timestamp).strftime('%Y/%m/%d')
-                        self.logger.debug(f"📅 {center.center_name} - {date_str}: {len(appointments)} نوبت")
-                    
-                    return appointments
-                return []
+                if appointments:
+                    date_str = datetime.fromtimestamp(day_timestamp).strftime('%Y/%m/%d')
+                    self.logger.debug(f"📅 {center.center_name} - {date_str}: {len(appointments)} نوبت")
                 
+                return appointments
+            return []
+            
         except Exception as e:
             self.logger.error(f"❌ خطا در دریافت نوبت‌های روز {day_timestamp}: {e}")
             return []
@@ -226,21 +246,30 @@ class EnhancedPazireshAPI:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
+            # استفاده از client مشترک یا ایجاد client جدید
+            if self.client:
+                response = await self.client.post(
                     f"{self.BASE_URL}/suspend",
                     data=data,
                     headers=headers
                 )
-                response.raise_for_status()
-                result = response.json()
-                
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
-                
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/suspend",
+                        data=data,
+                        headers=headers
+                    )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
+            
         except Exception as e:
             return APIResponse(
                 status=0,
@@ -265,21 +294,30 @@ class EnhancedPazireshAPI:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
+            # استفاده از client مشترک یا ایجاد client جدید
+            if self.client:
+                response = await self.client.post(
                     f"{self.BASE_URL}/unsuspend",
                     data=data,
                     headers=headers
                 )
-                response.raise_for_status()
-                result = response.json()
-                
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
-                
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/unsuspend",
+                        data=data,
+                        headers=headers
+                    )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
+            
         except Exception as e:
             return APIResponse(
                 status=0,
@@ -287,7 +325,7 @@ class EnhancedPazireshAPI:
                 error=str(e)
             )
 
-    async def get_appointment_booking_url(self, doctor: Doctor, center: DoctorCenter, 
+    async def get_appointment_booking_url(self, center: DoctorCenter, 
                                         service: DoctorService) -> str:
         """تولید لینک رزرو نوبت"""
         try:
@@ -296,13 +334,13 @@ class EnhancedPazireshAPI:
                 f"centerId={center.center_id}",
                 f"serviceId={service.service_id}",
                 f"cityName=tehran",  # پیش‌فرض
-                f"providerId={doctor.provider_id}",
-                f"userId={doctor.user_id}"
+                f"providerId={getattr(self.doctor, 'provider_id', '')}",
+                f"userId={getattr(self.doctor, 'user_id', '')}"
             ]
             
-            booking_url = f"{base_url}/{doctor.slug}/?{'&'.join(params)}"
+            booking_url = f"{base_url}/{self.doctor.slug}/?{'&'.join(params)}"
             return booking_url
             
         except Exception as e:
             self.logger.error(f"❌ خطا در تولید لینک رزرو: {e}")
-            return f"https://www.paziresh24.com/dr/{doctor.slug}/"
+            return f"https://www.paziresh24.com/dr/{self.doctor.slug}/"
