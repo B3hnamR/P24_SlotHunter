@@ -50,10 +50,11 @@ class TelegramConfig(BaseModel):
     admin_chat_id: int = Field(0, env="ADMIN_CHAT_ID")
 
 class MonitoringConfig(BaseModel):
-    check_interval: int = Field(30, env="CHECK_INTERVAL")
+    check_interval: int = Field(90, env="CHECK_INTERVAL")  # افزایش به 90 ثانیه
     max_retries: int = 3
-    timeout: int = 10
-    days_ahead: int = 7
+    timeout: int = 15  # افزایش timeout
+    days_ahead: int = 5  # کاهش روزهای بررسی
+    request_delay: float = 1.5  # delay بین درخواست‌ها
 
 class LoggingConfig(BaseModel):
     level: str = Field("INFO", env="LOG_LEVEL")
@@ -113,7 +114,7 @@ class Config:
         return obj
     
     def _get_default_config(self) -> Dict[str, Any]:
-        """تنظیمات پیش‌فرض"""
+        """تنظیمات پیش‌فرض بهینه شده"""
         admin_chat_id = os.getenv('ADMIN_CHAT_ID', '0')
         if admin_chat_id.isdigit():
             admin_chat_id = int(admin_chat_id)
@@ -132,10 +133,11 @@ class Config:
                 'admin_chat_id': admin_chat_id
             },
             'monitoring': {
-                'check_interval': int(os.getenv('CHECK_INTERVAL', '30')),
+                'check_interval': int(os.getenv('CHECK_INTERVAL', '90')),  # افزایش به 90 ثانیه
                 'max_retries': 3,
-                'timeout': 10,
-                'days_ahead': 7
+                'timeout': 15,  # افزایش timeout
+                'days_ahead': 5,  # کاهش روزهای بررسی
+                'request_delay': 1.5  # delay بین درخواست‌ها
             },
             'logging': {
                 'level': os.getenv('LOG_LEVEL', 'INFO'),
@@ -169,6 +171,11 @@ class Config:
     @property
     def days_ahead(self) -> int:
         return self._config.monitoring.days_ahead
+
+    @property
+    def request_delay(self) -> float:
+        """delay بین درخواست‌ها"""
+        return getattr(self._config.monitoring, 'request_delay', 1.5)
 
     @property
     def log_level(self) -> str:

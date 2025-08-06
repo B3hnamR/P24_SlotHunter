@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-فایل اصلی P24_SlotHunter - نسخه جدید با مدل چندمرکزی
+فایل اصلی P24_SlotHunter - نسخه بهینه شده برای جلوگیری از Rate Limiting
 """
 import asyncio
 import signal
@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 import httpx
 
 class SlotHunter:
-    """کلاس اصلی نوبت‌یاب - نسخه جدید"""
+    """کلاس اصلی نوبت‌یاب - نسخه بهینه شده"""
     
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
@@ -37,7 +37,7 @@ class SlotHunter:
         
     async def start(self):
         """شروع نوبت‌یاب"""
-        self.logger.info("🚀 شروع P24_SlotHunter - نسخه چندمرکزی")
+        self.logger.info("🚀 شروع P24_SlotHunter - نسخه بهینه شده")
         
         # بررسی تنظیمات
         if not self.config.telegram_bot_token:
@@ -82,6 +82,12 @@ class SlotHunter:
         self.running = True
         self.http_client = httpx.AsyncClient(timeout=self.config.api_timeout)
         
+        # نمایش تنظیمات بهینه سازی
+        self.logger.info(f"⚙️ تنظیمات بهینه سازی:")
+        self.logger.info(f"   🕐 فاصله بررسی: {self.config.check_interval} ثانیه")
+        self.logger.info(f"   📅 روزهای بررسی: {self.config.days_ahead} روز")
+        self.logger.info(f"   ⏱️ تاخیر بین درخواست‌ها: {self.config.request_delay} ثانیه")
+        
         # شروع همزمان ربات و نظارت
         try:
             await asyncio.gather(
@@ -93,7 +99,7 @@ class SlotHunter:
                 await self.http_client.aclose()
     
     async def monitor_loop(self):
-        """حلقه اصلی نظارت - نسخه جدید"""
+        """حلقه اصلی نظارت - نسخه بهینه شده"""
         while self.running:
             try:
                 # دریافت دکترهای فعال با مراکز و سرویس‌هایشان
@@ -111,7 +117,7 @@ class SlotHunter:
                 if active_doctors:
                     self.logger.info(f"🔍 شروع دور جدید بررسی {len(active_doctors)} دکتر...")
                     
-                    # بررسی هم�� دکترها
+                    # بررسی همه دکترها
                     for doctor in active_doctors:
                         # فقط دکترهایی که مشترک دارند را بررسی کن
                         active_subscriptions = [sub for sub in doctor.subscriptions if sub.is_active]
@@ -135,14 +141,19 @@ class SlotHunter:
                 await asyncio.sleep(60)  # صبر بیشتر در صورت خطا
     
     async def check_doctor(self, doctor: DBDoctor):
-        """بررسی نوبت‌های یک دکتر - نسخه جدید"""
+        """بررسی نوبت‌های یک دکتر - نسخه بهینه شده"""
         try:
             if not doctor.centers:
                 self.logger.warning(f"⚠️ {doctor.name} هیچ مرکزی ندارد")
                 return
             
-            # استفاده از API پیشرفته
-            api = EnhancedPazireshAPI(doctor, client=self.http_client)
+            # استفاده از API پیشرفته با تنظیمات بهینه
+            api = EnhancedPazireshAPI(
+                doctor, 
+                client=self.http_client,
+                timeout=self.config.api_timeout,
+                request_delay=self.config.request_delay
+            )
             appointments = await api.get_all_available_appointments(days_ahead=self.config.days_ahead)
             
             if appointments:
