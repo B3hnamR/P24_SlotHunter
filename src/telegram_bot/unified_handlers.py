@@ -1,5 +1,5 @@
 """
-Enhanced Telegram Handlers - نسخه اصلاح شده
+Enhanced Telegram Handlers - نسخه بهبود یافته با متن‌های جذاب
 """
 import asyncio
 import re
@@ -20,7 +20,7 @@ logger = get_logger("EnhancedHandlers")
 
 
 class UnifiedTelegramHandlers:
-    """کلاس پیشرفته handlers تلگرام - نسخه اصلاح شده"""
+    """کلاس پیشرفته handlers تلگرام - نسخه بهبود یافته"""
     
     def __init__(self, db_manager):
         self.db_manager = db_manager
@@ -30,7 +30,7 @@ class UnifiedTelegramHandlers:
     # ==================== Command Handlers ====================
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """دستور /start ساده"""
+        """دستور /start با متن‌های بهبود یافته"""
         try:
             user = update.effective_user
             
@@ -59,38 +59,19 @@ class UnifiedTelegramHandlers:
                     db_user.last_activity = datetime.utcnow()
                     is_new_user = False
             
-            # پیام خوش‌آمدگویی ساده
+            # پیام خوش‌آمدگویی بهبود یافته
             if is_new_user:
-                welcome_text = f"""
-🎯 **سلام {user.first_name}! خوش آمدید** 🎉
-
-به **ربات نوبت‌یاب پذیرش۲۴** خوش آمدید!
-
-🔥 **امکانات:**
-• 👨‍⚕️ **مشاهده دکترها** - لیست دکترهای موجود
-• 📝 **اشتراک در دکتر** - برای رصد نوبت‌های خالی
-
-💡 **نکته:** ربات ۲۴/۷ نوبت‌های خالی را رصد می‌کند!
-
-⚠️ **توجه:** دکترها را از طریق ربات اضافه کنید.
-                """
+                welcome_text = MessageFormatter.welcome_message(user.first_name, is_returning=False)
             else:
-                welcome_text = f"""
-👋 **سلام مجدد {user.first_name}!**
-
-خوشحالیم که دوباره اینجا هستید! 
-
-📊 **وضعیت سریع:**
-• آخرین بازدید: {db_user.last_activity.strftime('%Y/%m/%d %H:%M') if db_user.last_activity else 'اولین بار'}
-• حساب کاربری: ✅ فعال
-
-🚀 **آماده برای شروع؟**
-                """
+                welcome_text = MessageFormatter.returning_user_message(
+                    user.first_name, 
+                    db_user.last_activity
+                )
             
-            # منوی اصلی
+            # منوی اصلی بهبود یافته
             keyboard = [
-                [InlineKeyboardButton("���‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
-                [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+                [InlineKeyboardButton("👨‍⚕️ دکترها", callback_data="show_doctors")],
+                [InlineKeyboardButton("📊 وضعیت من", callback_data="my_subscriptions")],
                 [InlineKeyboardButton("🆕 اضافه کردن دکتر", callback_data="add_doctor")]
             ]
             
@@ -103,19 +84,19 @@ class UnifiedTelegramHandlers:
                 reply_markup=reply_markup
             )
             
-            # تنظیم منوی دائمی ساده
-            await self._setup_simple_menu(update)
+            # تنظیم منوی دائمی بهبود یافته
+            await self._setup_improved_menu(update)
             
         except Exception as e:
             logger.error(f"❌ خطا در start: {e}")
             await self._send_error_message(update.message, str(e))
     
-    async def _setup_simple_menu(self, update):
-        """تنظیم منوی دائمی ساده"""
+    async def _setup_improved_menu(self, update):
+        """تنظیم منوی دائمی بهبود یافته"""
         keyboard = [
             [
                 KeyboardButton("👨‍⚕️ دکترها"),
-                KeyboardButton("📝 اشتراک‌ها")
+                KeyboardButton("📊 وضعیت من")
             ]
         ]
         
@@ -123,41 +104,19 @@ class UnifiedTelegramHandlers:
             keyboard, 
             resize_keyboard=True,
             one_time_keyboard=False,
-            input_field_placeholder="انتخاب کنید..."
+            input_field_placeholder="یکی رو انتخاب کن..."
         )
         
         await update.message.reply_text(
-            "📱 **منوی سریع فعال شد!**\n\nاز دکمه‌های پایین صفحه استفاده کنید.",
+            "📱 **منوی سریع فعال شد!**\n\nاز دکمه‌های پایین استفاده کن.",
             parse_mode='Markdown',
             reply_markup=reply_markup
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """دستور /help ساده"""
+        """دستور /help بهبود یافته"""
         try:
-            help_text = """
-📚 **راهنمای ربات نوبت‌یاب**
-
-🎯 **قابلیت‌های اصلی:**
-
-👨‍⚕️ **مشاهده دکترها**
-• مشاهده لیست دکترهای موجود در سیستم
-• اطلاعات کامل هر دکتر
-
-📝 **اشتراک در دکتر**
-• اشتراک برای رصد نوبت‌های خالی
-• اطلاع‌رسانی فوری نوبت‌های جدید
-• مدیریت اشتراک‌ها
-
-🆕 **اضافه کردن دکتر**
-• اضافه کردن دکتر جدید از طریق لینک پذیرش۲۴
-• استخراج خودکار اطلاعات API
-
-💡 **نکات:**
-• نوبت‌ها سریع تمام می‌شوند، آماده باشید!
-• می‌توانید در چندین دکتر همزمان مشترک شوید
-• ربات فقط از API پذیرش۲۴ استفاده می‌کند
-            """
+            help_text = MessageFormatter.help_message()
             
             keyboard = [
                 [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
@@ -181,22 +140,26 @@ class UnifiedTelegramHandlers:
     # ==================== Message Handlers ====================
     
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """مدیریت پیام‌های متنی ساده"""
+        """مدیریت پیام‌های متنی بهبود یافته"""
         try:
             text = update.message.text
             user_id = update.effective_user.id
             
             if text == "👨‍⚕️ دکترها":
                 await self._show_doctors_list(update.message)
-            elif text == "📝 اشتراک‌ها":
+            elif text in ["📊 وضعیت من", "📝 اشتراک‌ها"]:
                 await self._show_subscriptions(update.message, user_id)
             elif self._is_doctor_url(text):
                 # اگر پیام شبیه URL دکتر است، سعی کن اضافه کنی
                 await self._handle_doctor_url(update.message, text, user_id)
             else:
-                # پیام پیش‌فرض
+                # پیام پیش‌فرض بهبود یافته
                 await update.message.reply_text(
-                    "🤔 **متوجه نشدم!**\n\nلطفاً از دکمه‌های منو استفاده کنید.",
+                    "🤔 **متوجه نشدم چی گفتی!**\n\n"
+                    "💡 **چیکار می‌تونی بکنی؟**\n"
+                    "• از دکمه‌های پایین استفاده کن\n"
+                    "• یا لینک دکتر رو بفرست تا اضافه کنم\n\n"
+                    "🆘 **کمک می‌خوای؟** /help بزن",
                     parse_mode='Markdown'
                 )
                 
@@ -207,7 +170,7 @@ class UnifiedTelegramHandlers:
     # ==================== Callback Handlers ====================
     
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """مدیریت callback های ساده"""
+        """مدیریت callback های بهبود یافته"""
         try:
             query = update.callback_query
             await query.answer()
@@ -229,17 +192,12 @@ class UnifiedTelegramHandlers:
                 await self._callback_add_doctor(query)
             elif data.startswith("check_appointments_"):
                 await self.doctor_handlers.check_doctor_appointments(update, context)
-            elif data.startswith("quick_reserve_"):
-                await self.doctor_handlers.quick_reserve_placeholder(update, context)
-            elif data.startswith("refresh_doctor_"):
-                await self._callback_refresh_doctor(query, data)
-            elif data.startswith("delete_doctor_"):
-                await self._callback_delete_doctor(query, data)
             elif data == "back_to_main":
                 await self._callback_back_to_main(query, user_id)
             else:
                 await query.edit_message_text(
-                    "❌ **دستور نامشخص**\n\nلطفاً از منوی اصلی استفاده کنید.",
+                    "❌ **دستور نامشخص!**\n\n"
+                    "😅 یه چیزی اشتباه شد. از منوی اصلی استفاده کن.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")
@@ -250,7 +208,7 @@ class UnifiedTelegramHandlers:
             logger.error(f"❌ خطا در callback: {e}")
             try:
                 await query.edit_message_text(
-                    f"❌ **خطا در پردازش**\n\n`{str(e)}`",
+                    MessageFormatter.error_message(f"مشکلی پیش اومد: {str(e)}"),
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")
@@ -262,7 +220,7 @@ class UnifiedTelegramHandlers:
     # ==================== Core Functions ====================
     
     async def _show_doctors_list(self, message):
-        """نمایش لیست دکترها از دیتابیس"""
+        """نمایش لیست دکترها بهبود یافته"""
         try:
             async with self.db_manager.session_scope() as session:
                 result = await session.execute(
@@ -272,16 +230,15 @@ class UnifiedTelegramHandlers:
                 
                 if not doctors:
                     text = """
-❌ **هیچ دکتری موجود نیست**
+😔 **هنوز دکتری اضافه نشده!**
 
-هنوز هیچ دکتری در سیس��م اضافه نشده است.
+🤔 **چیکار کنی؟**
+می‌تونی خودت دکتر اضافه کنی! فقط لینک صفحه دکتر رو از پذیرش۲۴ برام بفرست.
 
-🆕 **بر��ی اضافه کردن دکتر:**
-• از دکمه "🆕 اضافه کردن دکتر" استفاده کنید
-• لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید
-• ربات خودکار اطلاعات را استخراج می‌کند
+📋 **مثال:**
+`https://www.paziresh24.com/dr/دکتر-احمد-محمدی-0/`
 
-💡 **نکته:** این ربات فقط از API پذیرش۲۴ استفاده می‌کند.
+💡 **یا ��ز دکمه زیر استفاده کن:**
                     """
                     
                     keyboard = [
@@ -297,16 +254,15 @@ class UnifiedTelegramHandlers:
                     return
                 
                 text = f"""
-👨‍⚕️ **لیست دکترها ({len(doctors)} دکتر)**
+👨‍⚕️ **دکترهای موجود ({len(doctors)} دکتر)**
 
-✅ **دکترهای فعال در سیستم:**
+🎯 **چطور کار می‌کنه؟**
+روی اسم دکتر کلیک کن تا اطلاعات کامل و گزینه ثبت‌نام رو ببینی.
 
-💡 **راهنما:** روی نام دکتر کلیک کنید تا اطلاعات کامل و گزینه اشتراک را مشاهده کنید.
-
-📋 **دکترهای موجود:**
+✨ **دکترهای فعال:**
                 """
                 
-                # ایجاد keyboard
+                # ایجاد keyboard بهبود یافته
                 keyboard = []
                 for doctor in doctors:
                     specialty_emoji = self._get_specialty_emoji(doctor.specialty)
@@ -335,7 +291,7 @@ class UnifiedTelegramHandlers:
             await self._send_error_message(message, str(e))
     
     async def _show_subscriptions(self, message, user_id):
-        """نمایش اشتراک‌ها"""
+        """نمایش اشتراک‌ها بهبود یافته"""
         try:
             async with self.db_manager.session_scope() as session:
                 # دریافت کاربر
@@ -345,10 +301,10 @@ class UnifiedTelegramHandlers:
                 user = result.scalar_one_or_none()
                 
                 if not user:
-                    await message.reply_text("❌ کاربر یافت نشد.")
+                    await message.reply_text("❌ کاربر یافت نشد. لطفاً /start کنید.")
                     return
                 
-                # دریافت اشتراک‌های فعال با eager loading
+                # دریافت اشتراک‌های فعال
                 sub_result = await session.execute(
                     select(Subscription)
                     .options(selectinload(Subscription.doctor))
@@ -361,16 +317,17 @@ class UnifiedTelegramHandlers:
                 
                 if not subscriptions:
                     text = """
-📝 **اشتراک‌های من**
+📊 **وضعیت ثبت‌نام‌های تو**
 
-❌ شما در هیچ دکتری مشترک نیستید.
+😔 **هنوز توی هیچ دکتری ثبت‌نام نکردی!**
 
-💡 **برای اشتراک:**
-1. از منوی "👨‍⚕️ دکترها" استفاده کنید
-2. روی نام دکتر مورد نظر کلیک کنید
-3. دکمه "📝 اشتراک" را بزنید
+🤔 **چیکار کنی؟**
+1️⃣ برو قسمت "👨‍⚕️ دکترها"
+2️⃣ دکتر مورد نظرت رو انتخاب کن
+3️⃣ روی "📝 ثبت‌نام" بزن
 
-🔔 **اشتراک یعنی:** ربات ۲۴/۷ نوبت‌های خالی آن دکتر را رصد می‌کند و فوراً به شما اطلاع می‌دهد.
+🔔 **بعدش چی میشه؟**
+من مداوم نوبت‌های خالی اون دکتر رو چک می‌کنم و تا پیدا شد، فوری بهت خبر می‌دم!
                     """
                     keyboard = [
                         [InlineKeyboardButton("👨‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
@@ -378,9 +335,11 @@ class UnifiedTelegramHandlers:
                     ]
                 else:
                     text = f"""
-📝 **اشتراک‌های من ({len(subscriptions)} اشتراک فعال)**
+📊 **وضعیت ثبت‌نام‌های تو**
 
-✅ **دکترهای مشترک:**
+✅ **{len(subscriptions)} دکتر در حال رصد:**
+
+🤖 **وضعیت:** من مداوم نوبت‌های خالی این دکترها رو چک می‌کنم!
 
                     """
                     
@@ -388,8 +347,8 @@ class UnifiedTelegramHandlers:
                     for sub in subscriptions:
                         specialty_emoji = self._get_specialty_emoji(sub.doctor.specialty)
                         text += f"• {specialty_emoji} **{sub.doctor.name}**\n"
-                        text += f"  🏥 {sub.doctor.specialty or 'عمو��ی'}\n"
-                        text += f"  📅 تاریخ اشتراک: {sub.created_at.strftime('%Y/%m/%d') if sub.created_at else 'نامشخص'}\n\n"
+                        text += f"  🩺 {sub.doctor.specialty or 'عمومی'}\n"
+                        text += f"  📅 ثبت‌نام: {sub.created_at.strftime('%Y/%m/%d') if sub.created_at else 'نامشخص'}\n\n"
                         
                         keyboard.append([
                             InlineKeyboardButton(
@@ -399,7 +358,7 @@ class UnifiedTelegramHandlers:
                         ])
                     
                     text += """
-🔔 **وضعیت رصد:** ربات در حال رصد نوبت‌های خالی این دکترها است.
+💡 **نکته:** نوبت‌ها معمولاً خیلی سریع تموم میشن، پس آماده باش!
                     """
                     
                     keyboard.extend([
@@ -429,7 +388,7 @@ class UnifiedTelegramHandlers:
         await self._show_subscriptions(query.message, user_id)
     
     async def _callback_doctor_info(self, query, data, user_id):
-        """callback اطلاعات دکتر"""
+        """callback اطلاعات دکتر بهبود یافته"""
         try:
             doctor_id = int(data.split("_")[2])
             
@@ -464,44 +423,45 @@ class UnifiedTelegramHandlers:
                 
                 specialty_emoji = self._get_specialty_emoji(doctor.specialty)
                 
-                # دریافت اطلاعات اولین مرکز (اگر وجود دارد)
+                # دریافت اطلاعات مرکز
                 center_info = ""
                 if doctor.centers:
                     first_center = doctor.centers[0]
                     center_info = f"""
-🏢 **مرکز:** {first_center.center_name}
-📍 **آدرس:** {first_center.center_address or 'نامشخص'}
-📞 **تلفن:** {first_center.center_phone or 'نامشخص'}"""
+🏥 **مطب/کلینیک:** {first_center.center_name}
+📍 **آدرس:** {first_center.center_address or 'آدرس موجود نیست'}
+📞 **تلفن:** {first_center.center_phone or 'شماره موجود نیست'}"""
                     
                     if len(doctor.centers) > 1:
-                        center_info += f"\n🏥 **تعداد مراکز:** {len(doctor.centers)} مرکز"
+                        center_info += f"\n🏢 **تعداد مراکز:** {len(doctor.centers)} مرکز"
                 else:
-                    center_info = "\n🏢 **مرکز:** نامشخص"
+                    center_info = "\n🏥 **مطب/کلینیک:** اطلاعات موجود نیست"
                 
                 text = f"""
 {specialty_emoji} **{doctor.name}**
 
-🏥 **��خصص:** {doctor.specialty or 'عمومی'}{center_info}
+🩺 **تخصص:** {doctor.specialty or 'عمومی'}{center_info}
 
 🔗 **لینک صفحه دکتر:**
 https://www.paziresh24.com/dr/{doctor.slug}/
 
-📊 **وضعیت اشتراک:**
-{'✅ شما مشترک هستید' if is_subscribed else '❌ شما مشترک نیستید'}
+📊 **وضعیت ثبت‌نام شما:**
+{'✅ ثبت‌نام کردی' if is_subscribed else '❌ ثبت‌نام نکردی'}
 
-🔔 **اشتراک یعنی:** رصد خودکار نوبت‌های خالی و اطلاع‌رسانی فوری
+🤖 **چطور کار می‌کنه؟**
+اگه ثبت‌نام کنی، من هر چند دقیقه یه بار نوبت‌های خالی این دکتر رو چک می‌کنم و تا پیدا شد، فوری بهت خبر می‌دم!
 
-🤖 **نحوه کار:** ربات از API پذیرش۲۴ استفاده می‌کند و هر 30 ثانیه نوبت‌ها را بررسی می‌کند.
+💡 **نکته:** نوبت‌ها خیلی سریع تموم میشن، پس آماده باش!
                 """
                 
                 keyboard = []
                 if is_subscribed:
                     keyboard.append([
-                        InlineKeyboardButton("🗑️ لغو اشتراک", callback_data=f"unsubscribe_{doctor.id}")
+                        InlineKeyboardButton("🗑️ لغو ثبت‌نام", callback_data=f"unsubscribe_{doctor.id}")
                     ])
                 else:
                     keyboard.append([
-                        InlineKeyboardButton("📝 اشتراک در این دکتر", callback_data=f"subscribe_{doctor.id}")
+                        InlineKeyboardButton("📝 ثبت‌نام در این دکتر", callback_data=f"subscribe_{doctor.id}")
                     ])
                 
                 keyboard.extend([
@@ -519,10 +479,10 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
         except Exception as e:
             logger.error(f"❌ خطا در اطلاعات دکتر: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
+            await query.edit_message_text(MessageFormatter.error_message(str(e)))
     
     async def _callback_subscribe(self, query, data, user_id):
-        """callback اشتراک"""
+        """callback اشتراک بهبود یافته"""
         try:
             doctor_id = int(data.split("_")[1])
             
@@ -534,7 +494,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 user = user_result.scalar_one_or_none()
                 
                 if not user:
-                    await query.edit_message_text("❌ ��بتدا /start کنید.")
+                    await query.edit_message_text("❌ ابتدا /start کنید.")
                     return
                 
                 # دریافت دکتر
@@ -559,7 +519,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 if existing_sub:
                     if existing_sub.is_active:
                         await query.edit_message_text(
-                            f"✅ شما قبلاً در **{doctor.name}** مشترک هستید.",
+                            MessageFormatter.error_message(f"قبلاً توی {doctor.name} ثبت‌نام کردی!"),
                             parse_mode='Markdown'
                         )
                         return
@@ -573,29 +533,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     )
                     session.add(new_sub)
                 
-                specialty_emoji = self._get_specialty_emoji(doctor.specialty)
-                
-                text = f"""
-✅ **اشتراک موفق!**
-
-شما با موفقیت در دکتر **{specialty_emoji} {doctor.name}** مشترک شدید.
-
-🔔 **از این پس:**
-• ربات ۲۴/۷ نوبت‌های خالی این دکتر را رصد می‌کند
-• هر نوبت خالی فوراً به شما اطلاع داده می‌شود
-• پیام شامل لینک مستقیم رزرو خواهد بود
-
-🤖 **نحوه کار:**
-• ربات از API پذیرش۲۴ استفاده می‌کند
-• هر 30 ثانیه نوبت‌ها بررسی می‌شوند
-• اطلاع‌رسانی فوری در صورت پیدا شدن نوبت
-
-💡 **نکته مهم:** نوبت‌ها معمولاً سریع تمام می‌شوند، پس آماده باشید!
-                """
+                text = MessageFormatter.subscription_success_message(doctor)
                 
                 keyboard = [
                     [InlineKeyboardButton("👨‍⚕️ اطلاعات دکتر", callback_data=f"doctor_info_{doctor.id}")],
-                    [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+                    [InlineKeyboardButton("📊 وضعیت من", callback_data="my_subscriptions")],
                     [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -610,10 +552,10 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
         except Exception as e:
             logger.error(f"❌ خطا در اشتراک: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
+            await query.edit_message_text(MessageFormatter.error_message(str(e)))
     
     async def _callback_unsubscribe(self, query, data, user_id):
-        """callback لغو اشتراک"""
+        """callback لغو اشتراک بهبود یافته"""
         try:
             doctor_id = int(data.split("_")[1])
             
@@ -650,7 +592,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 if not subscription:
                     await query.edit_message_text(
-                        f"❌ شما در **{doctor.name}** مشترک نیستید.",
+                        MessageFormatter.error_message(f"توی {doctor.name} ثبت‌نام نکردی که!"),
                         parse_mode='Markdown'
                     )
                     return
@@ -658,23 +600,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 # لغو اشتراک
                 subscription.is_active = False
                 
-                specialty_emoji = self._get_specialty_emoji(doctor.specialty)
-                
-                text = f"""
-✅ **لغو اشتراک موفق!**
-
-اشتراک شما از دکتر **{specialty_emoji} {doctor.name}** لغو شد.
-
-🔕 **از این پس:**
-• دیگر اطلاع‌رسانی نوبت‌های این دکتر دریافت نخواهید کرد
-• رصد خودکار متوقف شد
-
-💡 **در صورت نیاز:** می‌توانید مجدداً مشترک شوید.
-                """
+                text = MessageFormatter.unsubscription_success_message(doctor)
                 
                 keyboard = [
-                    [InlineKeyboardButton("📝 اشتراک مجدد", callback_data=f"subscribe_{doctor.id}")],
-                    [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+                    [InlineKeyboardButton("📝 ثبت‌نام مجدد", callback_data=f"subscribe_{doctor.id}")],
+                    [InlineKeyboardButton("📊 وضعیت من", callback_data="my_subscriptions")],
                     [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -689,30 +619,11 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
         except Exception as e:
             logger.error(f"❌ خطا در لغو اشتراک: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
+            await query.edit_message_text(MessageFormatter.error_message(str(e)))
     
     async def _callback_add_doctor(self, query):
-        """callback اضافه کردن دکتر"""
-        text = """
-🆕 **اضافه کردن دکتر جدید**
-
-لطفاً لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید.
-
-📋 **فرمت‌های قابل قبول:**
-
-1️⃣ **لینک کامل:**
-`https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/`
-
-2️⃣ **لینک کوتاه:**
-`dr/دکتر-نام-خانوادگی-0/`
-
-3️⃣ **فقط slug:**
-`دکتر-نام-خانوادگی-0`
-
-💡 **نکته:** ربات تمام اطلاعات مورد نیاز را از صفحه دکتر استخراج می‌کند.
-
-🔄 **برای ادامه:** لینک دکتر را در پیام بعدی ارسال کنید
-        """
+        """callback اضافه کردن دکتر بهبود یافته"""
+        text = MessageFormatter.add_doctor_prompt_message()
         
         keyboard = [
             [InlineKeyboardButton("❌ لغو", callback_data="back_to_main")]
@@ -725,96 +636,24 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             reply_markup=reply_markup
         )
     
-    async def _callback_refresh_doctor(self, query, data):
-        """callback به‌روزرسانی دکتر"""
-        try:
-            doctor_id = int(data.split("_")[-1])
-            
-            await query.edit_message_text(
-                "🔄 **در حال به‌روزرسانی اطلاعات دکتر...**\n\nلطفاً صبر کنید...",
-                parse_mode='Markdown'
-            )
-            
-            success, message = await self.doctor_manager.refresh_doctor_data(doctor_id)
-            
-            if success:
-                text = f"✅ **به‌روزرسانی موفق!**\n\n{message}"
-                keyboard = [
-                    [InlineKeyboardButton("👨‍⚕️ مشاهده اطلاعات", callback_data=f"doctor_info_{doctor_id}")],
-                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
-                ]
-            else:
-                text = f"❌ **خطا در به‌روزرسانی**\n\n{message}"
-                keyboard = [
-                    [InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"refresh_doctor_{doctor_id}")],
-                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
-                ]
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(text, parse_mode='Markdown', reply_markup=reply_markup)
-            
-        except Exception as e:
-            logger.error(f"❌ خطا در به‌روزرسانی دکتر: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
-    
-    async def _callback_delete_doctor(self, query, data):
-        """callback حذف دکتر"""
-        try:
-            doctor_id = int(data.split("_")[-1])
-            
-            # دریافت اطلاعات دکتر
-            doctor = await self.doctor_manager.get_doctor_with_details(doctor_id)
-            if not doctor:
-                await query.edit_message_text("❌ دکتر یافت نشد.")
-                return
-            
-            text = f"""
-⚠️ **تأیید حذف دکتر**
-
-آیا مطمئن هستید که می‌خواهید دکتر **{doctor.name}** را حذف کنید؟
-
-🔴 **توجه:**
-• این عمل قابل بازگشت نیست
-• تمام اشتراک‌های مربوط به این دکتر لغو می‌شود
-• اطلاعات دکتر از سیستم حذف می‌شود
-
-👥 **مشترکین فعال:** {doctor.subscription_count} نفر
-            """
-            
-            keyboard = [
-                [
-                    InlineKeyboardButton("✅ بله، حذف کن", callback_data=f"confirm_delete_{doctor_id}"),
-                    InlineKeyboardButton("❌ لغو", callback_data=f"doctor_info_{doctor_id}")
-                ]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(
-                text,
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-            
-        except Exception as e:
-            logger.error(f"❌ خطا در حذف دکتر: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
-    
     async def _callback_back_to_main(self, query, user_id):
-        """callback بازگشت به منوی اصلی"""
+        """callback بازگشت به منوی اصلی بهبود یافته"""
         keyboard = [
-            [InlineKeyboardButton("👨‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
-            [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
+            [InlineKeyboardButton("👨‍⚕️ دکترها", callback_data="show_doctors")],
+            [InlineKeyboardButton("📊 وضعیت من", callback_data="my_subscriptions")],
             [InlineKeyboardButton("🆕 اضافه کردن دکتر", callback_data="add_doctor")]
         ]
         
         text = """
 🎯 **منوی اصلی**
 
-از دکمه‌های زیر برای استفاده از ربات استفاده کنید:
+🤖 **من چیکار می‌کنم؟**
+نوبت‌های خالی دکترها رو برات پیدا می‌کنم!
 
-💡 **نکته:** از منوی پایین صفحه نیز می‌توانید استفاده کنید.
+💡 **چطور استفاده کنی؟**
+از دکمه‌های زیر یا منوی پایین صفحه استفاده کن.
 
-🤖 **ربات فقط از API پذیرش۲۴ استفاده می‌کند.**
+⚡ **سریع و آسان!**
         """
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -835,15 +674,18 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         specialty_lower = specialty.lower()
         
         emoji_map = {
-            "قلب": "❤️", "کاردیولوژی": "❤️",
-            "مغز": "🧠", "نورولوژی": "🧠",
+            "قلب": "❤️", "کاردیولوژی": "❤️", "قلبی": "❤️",
+            "مغز": "🧠", "نورولوژی": "🧠", "اعصاب": "🧠",
             "چشم": "👁️", "افتالمولوژی": "👁️",
-            "دندان": "🦷",
-            "کودکان": "👶", "اطفال": "👶",
-            "زنان": "👩", "زایمان": "👩",
-            "ارتوپدی": "🦴", "استخوان": "🦴",
+            "دندان": "🦷", "دندانپزشک": "🦷",
+            "کودکان": "👶", "اطفال": "👶", "نوزاد": "👶",
+            "زنان": "👩", "زایمان": "👩", "زنان و زایمان": "👩",
+            "ارتوپدی": "🦴", "استخوان": "🦴", "مفصل": "🦴",
             "پوست": "🧴", "درمتولوژی": "🧴",
-            "گوش": "👂", "حلق": "👂"
+            "گوش": "👂", "حلق": "👂", "بینی": "👂",
+            "روانپزشک": "🧠", "روان": "🧠",
+            "جراح": "🔪", "جراحی": "🔪",
+            "داخلی": "🩺", "عمومی": "👨‍⚕️"
         }
         
         for keyword, emoji in emoji_map.items():
@@ -876,15 +718,15 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         return False
     
     async def _handle_doctor_url(self, message, url: str, user_id: int):
-        """پردازش URL دکتر و اضافه کردن به سیستم"""
+        """پردازش URL دکتر و اضافه کردن به سیستم بهبود یافته"""
         try:
             # ارسال پیام در حال پردازش
             processing_message = await message.reply_text(
-                "🔄 **در حال پردازش...**\n\n"
-                "⏳ دریافت اطلاعات دکتر از پذیرش۲۴\n"
-                "📊 استخراج اطلاعات API\n"
-                "💾 ذخیره در دیتابیس\n\n"
-                "لطفاً صبر کنید...",
+                "🔄 **صبر کن، دارم کار می‌کنم...**\n\n"
+                "⏳ دارم از پذیرش۲۴ اطلاعات دکتر رو می‌گیرم\n"
+                "🔍 اطلاعات مهم رو استخراج می‌کنم\n"
+                "💾 توی سیستم ذخیره می‌کنم\n\n"
+                "⏰ چند ثانیه طول می‌کشه...",
                 parse_mode='Markdown'
             )
             
@@ -892,8 +734,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             is_valid, validation_message = self.doctor_manager.validate_doctor_url(url)
             if not is_valid:
                 await processing_message.edit_text(
-                    f"❌ **URL نامعتبر**\n\n{validation_message}\n\n"
-                    "لطفاً URL معتبری ارسال کنید.",
+                    MessageFormatter.error_message(f"لینک درست نیست!\n\n{validation_message}"),
                     parse_mode='Markdown'
                 )
                 return
@@ -903,16 +744,17 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             
             if success:
                 # موفقیت
+                text = MessageFormatter.doctor_extraction_success_message(doctor.name)
+                
                 keyboard = [
                     [InlineKeyboardButton("👨‍⚕️ مشاهده دکتر", callback_data=f"doctor_info_{doctor.id}")],
-                    [InlineKeyboardButton("📝 اشتراک در این دکتر", callback_data=f"subscribe_{doctor.id}")],
-                    [InlineKeyboardButton("🔍 دریافت نوبت‌های خالی", callback_data=f"check_appointments_{doctor.id}")],
+                    [InlineKeyboardButton("📝 ثبت‌نام در این دکتر", callback_data=f"subscribe_{doctor.id}")],
                     [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await processing_message.edit_text(
-                    message_text,
+                    text,
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
@@ -921,14 +763,16 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
             else:
                 # خطا
+                text = MessageFormatter.doctor_extraction_failed_message()
+                
                 keyboard = [
-                    [InlineKeyboardButton("🔄 تلاش مجدد", callback_data="add_doctor")],
+                    [InlineKeyboardButton("🔄 دوباره امتحان کن", callback_data="add_doctor")],
                     [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await processing_message.edit_text(
-                    f"❌ **خطا در اضافه کردن دکتر**\n\n{message_text}",
+                    text,
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
@@ -936,25 +780,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         except Exception as e:
             logger.error(f"❌ خطا در پردازش URL دکتر: {e}")
             await message.reply_text(
-                f"❌ **خطا در پردازش**\n\n`{str(e)}`\n\n"
-                "لطفاً دوباره تلاش کنید.",
+                MessageFormatter.error_message(f"مشکلی پیش اومد: {str(e)}"),
                 parse_mode='Markdown'
             )
     
     async def _send_error_message(self, message, error_text):
-        """ارسال پیام خطا"""
-        error_message = f"""
-❌ **خطا در پردازش درخواست**
-
-🔍 **جزئیات خطا:**
-`{error_text}`
-
-🔧 **راه‌حل:**
-• دوباره تلاش کنید
-• از منوی اصلی استفاده کنید
-
-⏰ **زمان خطا:** {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}
-        """
+        """ارسال پیام خطا بهبود یافته"""
+        error_message = MessageFormatter.error_message(error_text)
         
         keyboard = [
             [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
