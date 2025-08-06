@@ -25,7 +25,7 @@ class DoctorHandlers:
     def __init__(self, db_manager):
         self.db_manager = db_manager
         self.doctor_manager = DoctorManager(db_manager)
-        self.api_client = EnhancedPazireshAPI()
+        # API client را در هر متد جداگانه ایجاد می‌کنیم
     
     # ==================== Add Doctor Conversation ====================
     
@@ -227,7 +227,7 @@ class DoctorHandlers:
                 text += f"\n**{i}. {center.center_name}**\n"
                 text += f"   📍 {center.center_address or 'آدرس نامشخص'}\n"
                 text += f"   📞 {center.center_phone or 'تلفن نامشخص'}\n"
-                text += f"   🏷️ {center.center_type or 'نوع نامشخص'}\n"
+                text += f"   🏷️ {getattr(center, 'center_type', 'نوع نامشخص')}\n"
                 
                 if center.services:
                     text += f"   🔧 **سرویس‌ها ({len(center.services)}):**\n"
@@ -243,7 +243,7 @@ class DoctorHandlers:
 📊 **آمار:**
 • مراکز فعال: {len([c for c in doctor.centers if c.is_active])}
 • کل سرویس‌ها: {total_services}
-• مشترکین: {doctor.subscription_count}
+• مشترکین: {getattr(doctor, 'subscription_count', 0)}
 
 🔗 **لینک صفحه:**
 https://www.paziresh24.com/dr/{doctor.slug}/
@@ -319,8 +319,9 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 await query.edit_message_text("❌ دکتر یافت نشد.")
                 return
             
-            # بررسی نوبت‌ها
-            appointments = await self.api_client.get_doctor_appointments(doctor, days_ahead=7)
+            # بررسی نوبت‌ها با ایجاد API client جدید
+            api_client = EnhancedPazireshAPI(doctor)
+            appointments = await api_client.get_all_available_appointments(days_ahead=7)
             
             if not appointments:
                 text = f"""
@@ -346,7 +347,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 # گروه‌بندی نوبت‌ها بر اساس مرکز و تاریخ
                 grouped_appointments = {}
                 for apt in appointments:
-                    key = f"{apt.center_name}_{apt.service_name}"
+                    key = f"{getattr(apt, 'center_name', 'نامشخص')}_{getattr(apt, 'service_name', 'ویزیت')}"
                     if key not in grouped_appointments:
                         grouped_appointments[key] = []
                     grouped_appointments[key].append(apt)
@@ -367,7 +368,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     # گروه‌بندی بر اساس تاریخ
                     dates = {}
                     for apt in apts:
-                        date_str = datetime.fromtimestamp(apt.from_time).strftime('%Y/%m/%d')
+                        date_str = apt.start_datetime.strftime('%Y/%m/%d')
                         if date_str not in dates:
                             dates[date_str] = []
                         dates[date_str].append(apt)
@@ -376,7 +377,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                         text += f"  📅 {date_str}: "
                         times = []
                         for apt in date_apts:
-                            time_str = datetime.fromtimestamp(apt.from_time).strftime('%H:%M')
+                            time_str = apt.start_datetime.strftime('%H:%M')
                             times.append(time_str)
                         text += ", ".join(times) + "\n"
                 
@@ -477,7 +478,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             if keyword in specialty_lower:
                 return emoji
         
-        return "👨‍⚕️"
+        return "👨‍���️"
     
     async def _is_admin(self, user_id: int) -> bool:
         """بررسی دسترسی ادمین"""

@@ -110,7 +110,7 @@ https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
         # گروه‌بندی نوبت‌ها بر اساس تاریخ
         dates_dict = {}
         for apt in appointments:
-            date_str = apt.start_datetime.strftime('%Y/%m/%d')
+            date_str = apt.time_str.split(' ')[0]  # استخراج تاریخ از time_str
             if date_str not in dates_dict:
                 dates_dict[date_str] = []
             dates_dict[date_str].append(apt)
@@ -131,7 +131,7 @@ https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
             
             # نمایش حداکثر 5 نوبت اول هر روز
             for apt in date_appointments[:5]:
-                time_str = apt.start_datetime.strftime('%H:%M')
+                time_str = apt.time_str.split(' ')[1]  # استخراج زمان از time_str
                 message += f"   ⏰ {time_str} (نوبت #{apt.workhour_turn_num})\n"
             
             if len(date_appointments) > 5:
@@ -183,7 +183,7 @@ https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
 
 ❌ شما در هیچ دکتری مشترک نیستید.
 
-💡 برای اشتراک از دستور /subscribe استفاده ک��ی��.
+💡 برای اشتراک از دستور /subscribe استفاده کنید.
             """
         
         message = "📊 **وضعیت اشتراک‌ها:**\n\n"
@@ -244,7 +244,7 @@ https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
 🎯 **نوبت‌های پیدا شده امروز:** {stats.get('appointments_today', 0)}
 
 ⏰ **آخرین بررسی:** در حال اجرا
-🔄 **وضعیت سیستم:** ف��ال
+🔄 **وضعیت سیستم:** فعال
         """
 
     @staticmethod
