@@ -152,6 +152,12 @@ install_system_dependencies() {
 setup_virtual_environment() {
     log_message "INFO" "Setting up Python virtual environment..."
     
+    # Check if virtual environment exists but is corrupted
+    if [ -d "$VENV_DIR" ] && [ ! -f "$VENV_DIR/bin/activate" ]; then
+        log_message "WARN" "Corrupted virtual environment detected, removing..."
+        rm -rf "$VENV_DIR"
+    fi
+    
     if [ ! -d "$VENV_DIR" ]; then
         if [ -n "$PYTHON_CMD" ]; then
             log_message "INFO" "Creating virtual environment with $PYTHON_CMD..."
@@ -190,13 +196,35 @@ setup_virtual_environment() {
             return 1
         fi
     else
-        log_message "INFO" "Virtual environment already exists"
+        log_message "INFO" "Virtual environment directory exists, checking integrity..."
     fi
     
     # Verify virtual environment was created properly
     if [ ! -f "$VENV_DIR/bin/activate" ]; then
         log_message "ERROR" "Virtual environment creation failed - activate script not found"
-        return 1
+        log_message "INFO" "Attempting to recreate virtual environment..."
+        
+        # Remove corrupted virtual environment and try again
+        rm -rf "$VENV_DIR"
+        
+        if [ -n "$PYTHON_CMD" ]; then
+            log_message "INFO" "Recreating virtual environment..."
+            if $PYTHON_CMD -m venv "$VENV_DIR" 2>&1; then
+                log_message "SUCCESS" "Virtual environment recreated successfully"
+            else
+                log_message "ERROR" "Failed to recreate virtual environment"
+                return 1
+            fi
+        else
+            log_message "ERROR" "Python 3 not found"
+            return 1
+        fi
+        
+        # Final check
+        if [ ! -f "$VENV_DIR/bin/activate" ]; then
+            log_message "ERROR" "Still cannot create valid virtual environment"
+            return 1
+        fi
     fi
     
     # Activate and upgrade pip
@@ -209,7 +237,13 @@ setup_virtual_environment() {
         return 1
     fi
     
-    pip install --upgrade pip
+    # Upgrade pip with better error handling
+    log_message "INFO" "Upgrading pip..."
+    if pip install --upgrade pip; then
+        log_message "SUCCESS" "Pip upgraded successfully"
+    else
+        log_message "WARN" "Failed to upgrade pip, but continuing..."
+    fi
     
     # Install requirements if file exists
     if [ -f "$REQUIREMENTS_FILE" ]; then
@@ -224,6 +258,7 @@ setup_virtual_environment() {
     else
         log_message "WARN" "Requirements file not found. Installing core dependencies..."
         # API-Only dependencies (no web scraping)
+        log_message "INFO" "Installing core API dependencies..."
         if pip install requests python-telegram-bot sqlalchemy pyyaml python-dotenv httpx aiosqlite alembic pydantic psutil; then
             log_message "SUCCESS" "Core dependencies installed"
         else
