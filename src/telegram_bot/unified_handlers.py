@@ -2,6 +2,7 @@
 Enhanced Telegram Handlers - شامل مدیریت دکترها
 """
 import asyncio
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from sqlalchemy import select
@@ -66,7 +67,7 @@ class UnifiedTelegramHandlers:
 به **ربات نوبت‌یاب پذیرش۲۴** خوش آمدید!
 
 🔥 **امکانات:**
-• 👨‍⚕️ **مشاهده دکت��ها** - لیست دکترهای موجود
+• 👨‍⚕️ **مشاهده دکترها** - لیست دکترهای موجود
 • 📝 **اشتراک در دکتر** - برای رصد نوبت‌های خالی
 
 💡 **نکته:** ربات ۲۴/۷ نوبت‌های خالی را رصد می‌کند!
@@ -86,7 +87,7 @@ class UnifiedTelegramHandlers:
 🚀 **آماده برای شروع؟**
                 """
             
-            # منوی اصلی - فقط قابلیت‌های اصلی
+            # منوی اصلی - فقط ق��بلیت‌های اصلی
             keyboard = [
                 [InlineKeyboardButton("👨‍⚕️ مشاهده دکترها", callback_data="show_doctors")],
                 [InlineKeyboardButton("📝 اشتراک‌های من", callback_data="my_subscriptions")],
@@ -185,7 +186,7 @@ class UnifiedTelegramHandlers:
             text = update.message.text
             user_id = update.effective_user.id
             
-            if text == "👨‍⚕️ دکترها":
+            if text == "👨‍⚕️ دکت��ها":
                 await self._show_doctors_list(update.message)
             elif text == "📝 اشتراک‌ها":
                 await self._show_subscriptions(update.message, user_id)
@@ -377,7 +378,7 @@ class UnifiedTelegramHandlers:
                 for sub in subscriptions:
                     specialty_emoji = self._get_specialty_emoji(sub.doctor.specialty)
                     text += f"• {specialty_emoji} **{sub.doctor.name}**\n"
-                    text += f"  ��� {sub.doctor.specialty or 'عمومی'}\n"
+                    text += f"  🏥 {sub.doctor.specialty or 'عمومی'}\n"
                     text += f"  📅 تاریخ اشتراک: {sub.created_at.strftime('%Y/%m/%d') if sub.created_at else 'نامشخص'}\n\n"
                     
                     keyboard.append([
@@ -463,7 +464,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 
 🔔 **اشتراک یعنی:** رصد خودکار نوبت‌های خالی و اطلاع‌رسانی فوری
 
-🤖 **نحوه کار:** ربات از API پذیرش۲۴ استفاده می‌کند و هر {30} ثانیه نوبت‌ها را بررسی می‌کند.
+🤖 **نحوه کار:** ربات از API پذیرش۲۴ استفاده می‌کند و هر {30} ثا��یه نوبت‌ها را بررسی می‌کند.
                 """
                 
                 keyboard = []
@@ -557,7 +558,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 • هر نوبت خالی فوراً به شما اطلاع داده می‌شود
 • پیام شامل لینک مستقیم رزرو خواهد بود
 
-🤖 **نحوه کار:**
+🤖 **نح��ه کار:**
 • ربات از API پذیرش۲۴ استفاده می‌کند
 • هر 30 ثانیه نوبت‌ها بررسی می‌شوند
 • اطلاع‌رسانی فوری در صورت پیدا شدن نوبت
@@ -581,7 +582,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 logger.info(f"📝 اشتراک جدید: {user.full_name} -> {doctor.name}")
                 
         except Exception as e:
-            logger.error(f"❌ خطا د�� اشتراک: {e}")
+            logger.error(f"❌ خطا در اشتراک: {e}")
             await query.edit_message_text(f"❌ خطا: {str(e)}")
     
     async def _callback_unsubscribe(self, query, data, user_id):
@@ -681,7 +682,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 3️⃣ **فقط slug:**
 `دکتر-نام-خانوادگی-0`
 
-💡 **نکته:** ربات تمام اطلاعات مورد نیاز را از صفحه دکتر استخراج می‌کند.
+💡 **نکته:** ربات تمام اطلاعات مورد نیاز را ��ز صفحه دکتر استخراج می‌کند.
 
 🔄 **برای ادامه:** لینک دکتر را در پیام بعدی ارسال کنید
         """
@@ -823,6 +824,95 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 return emoji
         
         return "👨‍⚕️"
+    
+    def _is_doctor_url(self, text: str) -> bool:
+        """بررسی اینکه آیا متن شبیه URL دکتر است یا نه"""
+        if not text:
+            return False
+        
+        text = text.strip()
+        
+        # بررسی فرمت‌های مختلف URL دکتر
+        patterns = [
+            # لینک کامل
+            r'https?://(?:www\.)?paziresh24\.com/dr/[^/\s]+/?',
+            # لینک کوتاه
+            r'^dr/[^/\s]+/?$',
+            # فقط slug (شامل دکتر- یا حروف فارسی/انگلیسی و خط تیره)
+            r'^[آ-یa-zA-Z0-9\-_]+$'
+        ]
+        
+        for pattern in patterns:
+            if re.match(pattern, text):
+                return True
+        
+        return False
+    
+    async def _handle_doctor_url(self, message, url: str, user_id: int):
+        """پردازش URL دکتر و اضافه کردن به سیستم"""
+        try:
+            # ارسال پیام در حال پردازش
+            processing_message = await message.reply_text(
+                "🔄 **در حال پردازش...**\n\n"
+                "⏳ دریافت اطلاعات دکتر از پذیرش۲۴\n"
+                "📊 استخراج اطلاعات API\n"
+                "💾 ذخیره در دیتابیس\n\n"
+                "لطفاً صبر کنید...",
+                parse_mode='Markdown'
+            )
+            
+            # اعتبارسنجی URL
+            is_valid, validation_message = self.doctor_manager.validate_doctor_url(url)
+            if not is_valid:
+                await processing_message.edit_text(
+                    f"❌ **URL نامعتبر**\n\n{validation_message}\n\n"
+                    "لطفاً URL معتبری ارسال کنید.",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # اضافه کردن دکتر
+            success, message_text, doctor = await self.doctor_manager.add_doctor_from_url(url, user_id)
+            
+            if success:
+                # موفقیت
+                keyboard = [
+                    [InlineKeyboardButton("👨‍⚕️ مشاهده دکتر", callback_data=f"doctor_info_{doctor.id}")],
+                    [InlineKeyboardButton("📝 اشتراک در این دکتر", callback_data=f"subscribe_{doctor.id}")],
+                    [InlineKeyboardButton("🔍 دریافت نوبت‌های خالی", callback_data=f"check_appointments_{doctor.id}")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await processing_message.edit_text(
+                    message_text,
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+                
+                logger.info(f"✅ دکتر جدید اضافه شد: {doctor.name} توسط {message.from_user.first_name}")
+                
+            else:
+                # خطا
+                keyboard = [
+                    [InlineKeyboardButton("🔄 تلاش مجدد", callback_data="add_doctor")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await processing_message.edit_text(
+                    f"❌ **خطا در اضافه کردن دکتر**\n\n{message_text}",
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در پردازش URL دکتر: {e}")
+            await message.reply_text(
+                f"❌ **خطا در پردازش**\n\n`{str(e)}`\n\n"
+                "لطفاً دوباره تلاش کنید.",
+                parse_mode='Markdown'
+            )
     
     async def _send_error_message(self, message, error_text):
         """ارسال پیام خطا"""
