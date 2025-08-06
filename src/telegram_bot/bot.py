@@ -29,7 +29,7 @@ class SlotHunterBot:
             # اضافه کردن handlers
             self._setup_handlers()
             
-            logger.info("✅ ربات جدید راه‌��ندازی شد")
+            logger.info("✅ ربات جدید راه‌اند��زی شد")
             
         except Exception as e:
             logger.error(f"❌ خطا در راه‌اندازی ربات: {e}")
@@ -87,16 +87,19 @@ class SlotHunterBot:
         """ارسال اطلاع‌رسانی نوبت"""
         try:
             from src.telegram_bot.messages import MessageFormatter
-            from src.database.models import Subscription
+            from src.database.models import Subscription, User
             from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
             
-            # دریافت مشترکین این دکتر
+            # دریافت مشترکین این دکتر با eager loading
             async with self.db_manager.session_scope() as session:
                 result = await session.execute(
-                    select(Subscription).filter(
+                    select(Subscription)
+                    .options(selectinload(Subscription.user))
+                    .filter(
                         Subscription.doctor_id == doctor.id,
                         Subscription.is_active == True
-                    ).join(Subscription.user)
+                    )
                 )
                 subscriptions = result.scalars().all()
                 
@@ -117,6 +120,8 @@ class SlotHunterBot:
                             parse_mode='Markdown'
                         )
                         sent_count += 1
+                        # کمی delay برای جلوگیری از rate limiting
+                        await asyncio.sleep(0.1)
                     except Exception as e:
                         logger.error(f"❌ خطا در ارسال به {subscription.user.telegram_id}: {e}")
                 

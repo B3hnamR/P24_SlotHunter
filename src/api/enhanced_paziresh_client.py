@@ -1,6 +1,7 @@
 """
 کلاینت پیشرفته API پذیرش۲۴ - پشتیبانی از چندین مرکز و سرویس
 """
+import asyncio
 import httpx
 import logging
 from typing import List, Optional, Dict, Tuple
@@ -45,15 +46,19 @@ class EnhancedPazireshAPI:
             self.logger.info(f"🔍 شروع بررسی نوبت‌های {self.doctor.name}")
             all_appointments = []
             
-            for center in self.doctor.centers:
+            for center_idx, center in enumerate(self.doctor.centers):
                 if not center.is_active:
                     continue
                     
-                for service in center.services:
+                for service_idx, service in enumerate(center.services):
                     if not service.is_active:
                         continue
                     
                     try:
+                        # اضافه کردن delay بین سرویس‌ها برای جلوگیری از rate limiting
+                        if center_idx > 0 or service_idx > 0:
+                            await asyncio.sleep(0.3)  # 300ms delay
+                        
                         appointments = await self._get_service_appointments(
                             center, service, days_ahead
                         )
@@ -98,9 +103,13 @@ class EnhancedPazireshAPI:
             today = int(datetime.now().timestamp())
             future_days = [day for day in available_days if day >= today][:days_ahead]
 
-            # 3. دریافت نوبت‌های هر روز
+            # 3. دریافت نوبت‌های هر روز با delay برای جلوگیری از rate limiting
             all_appointments = []
-            for day_timestamp in future_days:
+            for i, day_timestamp in enumerate(future_days):
+                # اضافه کردن delay بین درخواست‌ها
+                if i > 0:
+                    await asyncio.sleep(0.5)  # 500ms delay
+                
                 day_appointments = await self._get_day_appointments(
                     center, service, terminal_id, day_timestamp
                 )
@@ -114,7 +123,7 @@ class EnhancedPazireshAPI:
 
     async def _get_free_days(self, center: DoctorCenter, service: DoctorService, 
                            terminal_id: str) -> APIResponse:
-        """دریا��ت روزهای موجود"""
+        """دریافت روزهای موجود"""
         headers = {
             **self.base_headers,
             'center_id': center.center_id,
@@ -155,6 +164,16 @@ class EnhancedPazireshAPI:
                 data=result
             )
             
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                self.logger.warning(f"⚠️ Rate limit hit, waiting 2 seconds...")
+                await asyncio.sleep(2)
+                return APIResponse(status=0, message="Rate limit", error="429")
+            return APIResponse(
+                status=0,
+                message="خطا در ارتباط با سرور",
+                error=str(e)
+            )
         except httpx.RequestError as e:
             return APIResponse(
                 status=0,
@@ -221,6 +240,13 @@ class EnhancedPazireshAPI:
                 return appointments
             return []
             
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                self.logger.warning(f"⚠️ Rate limit hit for day {day_timestamp}, skipping...")
+                await asyncio.sleep(1)
+            else:
+                self.logger.error(f"❌ خطا در دریافت نوبت‌های روز {day_timestamp}: {e}")
+            return []
         except Exception as e:
             self.logger.error(f"❌ خطا در دریافت نوبت‌های روز {day_timestamp}: {e}")
             return []
