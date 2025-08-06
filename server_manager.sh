@@ -121,20 +121,22 @@ install_system_dependencies() {
     
     case $PACKAGE_MANAGER in
         "apt")
+            log_message "INFO" "Updating package list..."
             sudo apt update
-            sudo apt install -y python3 python3-pip python3-venv git curl wget nano htop
+            log_message "INFO" "Installing required packages..."
+            sudo apt install -y python3 python3-pip python3-venv python3-dev git curl wget nano htop build-essential
             ;;
         "yum")
             sudo yum update -y
-            sudo yum install -y python3 python3-pip git curl wget nano htop
+            sudo yum install -y python3 python3-pip python3-devel git curl wget nano htop gcc gcc-c++ make
             ;;
         "dnf")
             sudo dnf update -y
-            sudo dnf install -y python3 python3-pip git curl wget nano htop
+            sudo dnf install -y python3 python3-pip python3-devel git curl wget nano htop gcc gcc-c++ make
             ;;
         "pacman")
             sudo pacman -Syu --noconfirm
-            sudo pacman -S --noconfirm python python-pip git curl wget nano htop
+            sudo pacman -S --noconfirm python python-pip git curl wget nano htop base-devel
             ;;
         *)
             log_message "WARN" "Unknown package manager. Please install dependencies manually:"
@@ -152,8 +154,37 @@ setup_virtual_environment() {
     
     if [ ! -d "$VENV_DIR" ]; then
         if [ -n "$PYTHON_CMD" ]; then
-            $PYTHON_CMD -m venv "$VENV_DIR"
-            log_message "SUCCESS" "Virtual environment created"
+            log_message "INFO" "Creating virtual environment with $PYTHON_CMD..."
+            if $PYTHON_CMD -m venv "$VENV_DIR" 2>&1; then
+                log_message "SUCCESS" "Virtual environment created"
+            else
+                log_message "ERROR" "Failed to create virtual environment"
+                log_message "INFO" "This usually means python3-venv is not installed"
+                log_message "INFO" "Installing python3-venv package..."
+                
+                # Try to install python3-venv
+                case $PACKAGE_MANAGER in
+                    "apt")
+                        sudo apt update
+                        sudo apt install -y python3-venv
+                        ;;
+                    "yum")
+                        sudo yum install -y python3-venv
+                        ;;
+                    "dnf")
+                        sudo dnf install -y python3-venv
+                        ;;
+                esac
+                
+                # Try again
+                log_message "INFO" "Retrying virtual environment creation..."
+                if $PYTHON_CMD -m venv "$VENV_DIR" 2>&1; then
+                    log_message "SUCCESS" "Virtual environment created successfully"
+                else
+                    log_message "ERROR" "Still failed to create virtual environment"
+                    return 1
+                fi
+            fi
         else
             log_message "ERROR" "Python 3 not found. Please install Python 3.8+"
             return 1
@@ -162,23 +193,48 @@ setup_virtual_environment() {
         log_message "INFO" "Virtual environment already exists"
     fi
     
+    # Verify virtual environment was created properly
+    if [ ! -f "$VENV_DIR/bin/activate" ]; then
+        log_message "ERROR" "Virtual environment creation failed - activate script not found"
+        return 1
+    fi
+    
     # Activate and upgrade pip
+    log_message "INFO" "Activating virtual environment and upgrading pip..."
     source "$VENV_DIR/bin/activate"
+    
+    # Verify activation worked
+    if [ -z "$VIRTUAL_ENV" ]; then
+        log_message "ERROR" "Failed to activate virtual environment"
+        return 1
+    fi
+    
     pip install --upgrade pip
     
     # Install requirements if file exists
     if [ -f "$REQUIREMENTS_FILE" ]; then
         log_message "INFO" "Installing Python dependencies from requirements.txt..."
-        pip install -r "$REQUIREMENTS_FILE"
-        log_message "SUCCESS" "Python dependencies installed"
+        if pip install -r "$REQUIREMENTS_FILE"; then
+            log_message "SUCCESS" "Python dependencies installed"
+        else
+            log_message "ERROR" "Failed to install Python dependencies"
+            deactivate
+            return 1
+        fi
     else
         log_message "WARN" "Requirements file not found. Installing core dependencies..."
         # API-Only dependencies (no web scraping)
-        pip install requests python-telegram-bot sqlalchemy pyyaml python-dotenv httpx aiosqlite alembic pydantic psutil
-        log_message "SUCCESS" "Core dependencies installed"
+        if pip install requests python-telegram-bot sqlalchemy pyyaml python-dotenv httpx aiosqlite alembic pydantic psutil; then
+            log_message "SUCCESS" "Core dependencies installed"
+        else
+            log_message "ERROR" "Failed to install core dependencies"
+            deactivate
+            return 1
+        fi
     fi
     
     deactivate
+    log_message "SUCCESS" "Virtual environment setup completed"
 }
 
 # Setup database with Alembic
@@ -605,14 +661,15 @@ full_system_setup() {
     # Detect system
     detect_system
     
-    # Install system dependencies
-    if ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
-        log_message "INFO" "Installing system dependencies..."
-        if ! install_system_dependencies; then
-            log_message "ERROR" "Failed to install system dependencies"
-            return 1
-        fi
+    # Always install/update system dependencies to ensure we have everything needed
+    log_message "INFO" "Installing/updating system dependencies..."
+    if ! install_system_dependencies; then
+        log_message "ERROR" "Failed to install system dependencies"
+        return 1
     fi
+    
+    # Re-detect system after installing dependencies (Python command might have changed)
+    detect_system
     
     # Create project structure
     create_project_structure
