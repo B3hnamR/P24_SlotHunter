@@ -79,7 +79,7 @@ class MessageFormatter:
             status = "✅" if doctor.is_active else "⏸️"
             message += f"{status} **{i}. {doctor.name}**\n"
             message += f"   🏥 {doctor.specialty}\n"
-            message += f"   📍 {doctor.center_name}\n\n"
+            message += f"   📍 {doctor.centers[0].center_name if doctor.centers else 'نامشخص'}\n\n"
         
         message += "💡 برای اشتراک از دستور /subscribe استفاده کنید."
         return message
@@ -91,9 +91,9 @@ class MessageFormatter:
 👨‍⚕️ **{escape_markdown(doctor.name)}**
 
 🏥 **تخصص:** {escape_markdown(doctor.specialty)}
-🏢 **مرکز:** {escape_markdown(doctor.center_name)}
-📍 **آدرس:** {escape_markdown(doctor.center_address)}
-📞 **تلفن:** {escape_markdown(doctor.center_phone)}
+🏢 **مرکز:** {escape_markdown(doctor.centers[0].center_name if doctor.centers else 'نامشخص')}
+📍 **آدرس:** {escape_markdown(doctor.centers[0].center_address if doctor.centers and doctor.centers[0].center_address else 'نامشخص')}
+📞 **تلفن:** {escape_markdown(doctor.centers[0].center_phone if doctor.centers and doctor.centers[0].center_phone else 'نامشخص')}
 
 🔗 **لینک مستقیم:**
 https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
@@ -119,8 +119,8 @@ https://www.paziresh24.com/dr/{escape_markdown(doctor.slug)}/
 🎯 **نوبت خالی پیدا شد!**
 
 👨‍⚕️ **دکتر:** {escape_markdown(doctor.name)}
-🏥 **مرکز:** {escape_markdown(doctor.center_name)}
-📍 **آدرس:** {escape_markdown(doctor.center_address)}
+🏥 **مرکز:** {escape_markdown(doctor.centers[0].center_name if doctor.centers else 'نامشخص')}
+📍 **آدرس:** {escape_markdown(doctor.centers[0].center_address if doctor.centers and doctor.centers[0].center_address else 'نامشخص')}
 
 📅 **نوبت‌های موجود:**
         """

@@ -422,7 +422,9 @@ class UnifiedTelegramHandlers:
             
             async with self.db_manager.session_scope() as session:
                 result = await session.execute(
-                    select(Doctor).filter(Doctor.id == doctor_id)
+                    select(Doctor)
+                    .options(selectinload(Doctor.centers).selectinload(DoctorCenter.services))
+                    .filter(Doctor.id == doctor_id)
                 )
                 doctor = result.scalar_one_or_none()
                 
@@ -449,12 +451,24 @@ class UnifiedTelegramHandlers:
                 
                 specialty_emoji = self._get_specialty_emoji(doctor.specialty)
                 
+                # دریافت اطلاعات اول��ن مرکز (اگر وجود دارد)
+                center_info = ""
+                if doctor.centers:
+                    first_center = doctor.centers[0]
+                    center_info = f"""
+🏢 **مرکز:** {first_center.center_name}
+📍 **آدرس:** {first_center.center_address or 'نامشخص'}
+📞 **تلفن:** {first_center.center_phone or 'نامشخص'}"""
+                    
+                    if len(doctor.centers) > 1:
+                        center_info += f"\n🏥 **تعداد مراکز:** {len(doctor.centers)} مرکز"
+                else:
+                    center_info = "\n🏢 **مرکز:** نامشخص"
+                
                 text = f"""
 {specialty_emoji} **{doctor.name}**
 
-🏥 **تخصص:** {doctor.specialty or 'عمومی'}
-🏢 **مرکز:** {doctor.center_name or 'نامشخص'}
-📍 **آدرس:** {doctor.center_address or 'نامشخص'}
+🏥 **تخصص:** {doctor.specialty or 'عمومی'}{center_info}
 
 🔗 **لینک صفحه دکتر:**
 https://www.paziresh24.com/dr/{doctor.slug}/
@@ -464,7 +478,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
 
 🔔 **اشتراک یعنی:** رصد خودکار نوبت‌های خالی و اطلاع‌رسانی فوری
 
-🤖 **نحوه کار:** ربات از API پذیرش۲۴ استفاده می‌کند و هر {30} ثا��یه نوبت‌ها را بررسی می‌کند.
+🤖 **نحوه کار:** ربات از API پذیرش۲۴ استفاده می‌کند و هر 30 ثانیه نوبت‌ها را بررسی می‌کند.
                 """
                 
                 keyboard = []
