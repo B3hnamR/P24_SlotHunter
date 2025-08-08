@@ -42,6 +42,10 @@ class Appointment:
     to_time: int    # Unix timestamp
     workhour_turn_num: int
     doctor_slug: str = ""
+    center_name: Optional[str] = None
+    service_name: Optional[str] = None
+    center_id: Optional[str] = None
+    service_id: Optional[str] = None
     
     @property
     def start_datetime(self) -> datetime:

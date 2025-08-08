@@ -1,7 +1,7 @@
 """
 مدل‌های دیتابیس SQLAlchemy
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, BigInteger, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, BigInteger, Text, UniqueConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -123,6 +123,10 @@ class Subscription(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint('user_id', 'doctor_id', name='uq_subscription_user_doctor'),
+        Index('ix_subscriptions_user_active', 'user_id', 'is_active'),
+    )
     
     # روابط
     user = relationship("User", back_populates="subscriptions")

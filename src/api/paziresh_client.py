@@ -72,24 +72,21 @@ class PazireshAPI:
             'return_type': 'calendar',
             'terminal_id': self.doctor.terminal_id
         }
+        client = self.client or httpx.AsyncClient(timeout=self.timeout)
+        close_client = self.client is None
         try:
-            client = self.client or httpx.AsyncClient(timeout=self.timeout)
-            try:
-                response = await client.post(
-                    f"{self.BASE_URL}/getFreeDays",
-                    data=data,
-                    headers=self.headers
-                )
-            finally:
-                if not self.client:
-                    await client.aclose()
-                response.raise_for_status()
-                result = response.json()
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
+            response = await client.post(
+                f"{self.BASE_URL}/getFreeDays",
+                data=data,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            result = response.json()
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
         except httpx.RequestError as e:
             return APIResponse(
                 status=0,
@@ -102,6 +99,9 @@ class PazireshAPI:
                 message="خطای غیرمنتظره",
                 error=str(e)
             )
+        finally:
+            if close_client:
+                await client.aclose()
 
     async def _get_day_appointments(self, day_timestamp: int) -> List[Appointment]:
         """دریافت نوبت‌های یک روز خاص (async)"""
@@ -112,35 +112,35 @@ class PazireshAPI:
             'date': str(day_timestamp),
             'terminal_id': self.doctor.terminal_id
         }
+        client = self.client or httpx.AsyncClient(timeout=self.timeout)
+        close_client = self.client is None
         try:
-            client = self.client or httpx.AsyncClient(timeout=self.timeout)
-            try:
-                response = await client.post(
-                    f"{self.BASE_URL}/getFreeTurns",
-                    data=data,
-                    headers=self.headers
-                )
-            finally:
-                if not self.client:
-                    await client.aclose()
-                response.raise_for_status()
-                result = response.json()
-                if result.get('status') == 1:
-                    appointments = []
-                    for apt_data in result.get('result', []):
-                        appointment = Appointment(
-                            from_time=apt_data['from'],
-                            to_time=apt_data['to'],
-                            workhour_turn_num=apt_data['workhour_turn_num']
-                        )
-                        appointments.append(appointment)
-                    date_str = datetime.fromtimestamp(day_timestamp).strftime('%Y/%m/%d')
-                    self.logger.debug(f"📅 {date_str}: {len(appointments)} نوبت موجود")
-                    return appointments
-                return []
+            response = await client.post(
+                f"{self.BASE_URL}/getFreeTurns",
+                data=data,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            result = response.json()
+            if result.get('status') == 1:
+                appointments = []
+                for apt_data in result.get('result', []):
+                    appointment = Appointment(
+                        from_time=apt_data['from'],
+                        to_time=apt_data['to'],
+                        workhour_turn_num=apt_data['workhour_turn_num']
+                    )
+                    appointments.append(appointment)
+                date_str = datetime.fromtimestamp(day_timestamp).strftime('%Y/%m/%d')
+                self.logger.debug(f"📅 {date_str}: {len(appointments)} نوبت موجود")
+                return appointments
+            return []
         except Exception as e:
             self.logger.error(f"❌ خطا در دریافت نوبت‌های روز {day_timestamp}: {e}")
             return []
+        finally:
+            if close_client:
+                await client.aclose()
 
     async def reserve_appointment(self, appointment: Appointment) -> APIResponse:
         """رزرو موقت نوبت (async)"""
@@ -152,30 +152,30 @@ class PazireshAPI:
             'to': str(appointment.to_time),
             'terminal_id': self.doctor.terminal_id
         }
+        client = self.client or httpx.AsyncClient(timeout=self.timeout)
+        close_client = self.client is None
         try:
-            client = self.client or httpx.AsyncClient(timeout=self.timeout)
-            try:
-                response = await client.post(
-                    f"{self.BASE_URL}/suspend",
-                    data=data,
-                    headers=self.headers
-                )
-            finally:
-                if not self.client:
-                    await client.aclose()
-                response.raise_for_status()
-                result = response.json()
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
+            response = await client.post(
+                f"{self.BASE_URL}/suspend",
+                data=data,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            result = response.json()
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
         except Exception as e:
             return APIResponse(
                 status=0,
                 message="خطا در رزرو نوبت",
                 error=str(e)
             )
+        finally:
+            if close_client:
+                await client.aclose()
 
     async def cancel_reservation(self, request_code: str) -> APIResponse:
         """لغو رزرو نوبت (async)"""
@@ -184,27 +184,27 @@ class PazireshAPI:
             'request_code': request_code,
             'terminal_id': self.doctor.terminal_id
         }
+        client = self.client or httpx.AsyncClient(timeout=self.timeout)
+        close_client = self.client is None
         try:
-            client = self.client or httpx.AsyncClient(timeout=self.timeout)
-            try:
-                response = await client.post(
-                    f"{self.BASE_URL}/unsuspend",
-                    data=data,
-                    headers=self.headers
-                )
-            finally:
-                if not self.client:
-                    await client.aclose()
-                response.raise_for_status()
-                result = response.json()
-                return APIResponse(
-                    status=result.get('status', 0),
-                    message=result.get('message', ''),
-                    data=result
-                )
+            response = await client.post(
+                f"{self.BASE_URL}/unsuspend",
+                data=data,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            result = response.json()
+            return APIResponse(
+                status=result.get('status', 0),
+                message=result.get('message', ''),
+                data=result
+            )
         except Exception as e:
             return APIResponse(
                 status=0,
                 message="خطا در لغو رزرو",
                 error=str(e)
             )
+        finally:
+            if close_client:
+                await client.aclose()

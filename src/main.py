@@ -152,6 +152,7 @@ class SlotHunter:
                 doctor, 
                 client=self.http_client,
                 timeout=self.config.api_timeout,
+                base_url=self.config.api_base_url,
                 request_delay=self.config.request_delay
             )
             appointments = await api.get_all_available_appointments(days_ahead=self.config.days_ahead)
@@ -185,9 +186,10 @@ class SlotHunter:
 
 
 def signal_handler(signum, frame):
-    """مدیریت سیگنال‌های سیستم"""
-    print("\n🛑 دریافت سیگنال توقف...")
-    sys.exit(0)
+    """مدیریت سیگنال‌های سیستم - توقف تمیز"""
+    print("\n🛑 دریافت سیگنال توقف، در حال توقف...")
+    # پرتاب KeyboardInterrupt تا بلاک except در main اجرا شود و hunter.stop() فراخوانی گردد
+    raise KeyboardInterrupt()
 
 
 async def main():

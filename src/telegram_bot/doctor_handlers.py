@@ -1,7 +1,8 @@
 """
-Handlers مربوط به مدیریت دکترها
+Handlers مربوط به مدیریت دکترها (نسخه HTML)
 """
 import asyncio
+import html
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from datetime import datetime
 from src.database.models import User, Doctor, Subscription
 from src.api.doctor_manager import DoctorManager
 from src.api.enhanced_paziresh_client import EnhancedPazireshAPI
+from src.telegram_bot.messages import MessageFormatter
 from src.utils.logger import get_logger
 
 logger = get_logger("DoctorHandlers")
@@ -20,7 +22,7 @@ ADD_DOCTOR_URL = 1
 
 
 class DoctorHandlers:
-    """کلاس handlers مربوط به دکترها"""
+    """کلاس handlers مربوط به دکترها (HTML)"""
     
     def __init__(self, db_manager):
         self.db_manager = db_manager
@@ -34,31 +36,19 @@ class DoctorHandlers:
         try:
             user_id = update.effective_user.id
             
-            # بررسی دسترسی ادمین (اختیاری - فعلاً همه می‌توانند اضافه کنند)
-            # if not await self._is_admin(user_id):
-            #     await update.message.reply_text("❌ فقط ادمین‌ها می‌توانند دکتر اضافه کنند.")
-            #     return ConversationHandler.END
-            
-            text = """
-🆕 **اضافه کردن دکتر جدید**
-
-لطفاً لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید.
-
-📋 **فرمت‌های قابل قبول:**
-
-1️⃣ **لینک کامل:**
-`https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/`
-
-2️⃣ **لینک کوتاه:**
-`dr/دکتر-نام-خانوادگی-0/`
-
-3️⃣ **فقط slug:**
-`دکتر-نام-خانوادگی-0`
-
-💡 **نکته:** ربات تمام اطلاعات مورد نیاز را از صفحه دکتر استخراج می‌کند.
-
-🔄 **برای لغو:** /cancel
-            """
+            text = (
+                "🆕 <b>اضافه کردن دکتر جدید</b>\n\n"
+                "لطفاً لینک صفحه دکتر در پذیرش۲۴ را ارسال کنید.\n\n"
+                "📋 <b>فرمت‌های قابل قبول:</b>\n\n"
+                "1️⃣ <b>لینک کامل:</b>\n"
+                "<code>https://www.paziresh24.com/dr/دکتر-نام-خانوادگی-0/</code>\n\n"
+                "2️⃣ <b>لینک کوتاه:</b>\n"
+                "<code>dr/دکتر-نام-خانوادگی-0/</code>\n\n"
+                "3️⃣ <b>فقط slug:</b>\n"
+                "<code>دکتر-نام-خانوادگی-0</code>\n\n"
+                "💡 <b>نکته:</b> ربات تمام اطلاعات مورد نیاز را از صفحه دکتر استخراج می‌کند.\n\n"
+                "🔄 <b>برای لغو:</b> /cancel"
+            )
             
             keyboard = [
                 [InlineKeyboardButton("❌ لغو", callback_data="cancel_add_doctor")]
@@ -67,7 +57,7 @@ class DoctorHandlers:
             
             await update.message.reply_text(
                 text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
             
@@ -75,7 +65,7 @@ class DoctorHandlers:
             
         except Exception as e:
             logger.error(f"❌ خطا در شروع اضافه کردن دکتر: {e}")
-            await update.message.reply_text(f"❌ خطا: {str(e)}")
+            await update.message.reply_text(f"❌ خطا: {html.escape(str(e))}", parse_mode='HTML')
             return ConversationHandler.END
     
     async def receive_doctor_url(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -86,21 +76,21 @@ class DoctorHandlers:
             
             # ارسال پیام در حال پردازش
             processing_message = await update.message.reply_text(
-                "🔄 **در حال پردازش...**\n\n"
+                "🔄 <b>در حال پردازش...</b>\n\n"
                 "⏳ دریافت اطلاعات دکتر از پذیرش۲۴\n"
                 "📊 استخراج اطلاعات API\n"
                 "💾 ذخیره در دیتابیس\n\n"
                 "لطفاً صبر کنید...",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
             # اعتبارسنجی URL
             is_valid, validation_message = self.doctor_manager.validate_doctor_url(url)
             if not is_valid:
                 await processing_message.edit_text(
-                    f"❌ **URL نامعتبر**\n\n{validation_message}\n\n"
+                    f"❌ <b>URL نامعتبر</b>\n\n{html.escape(validation_message)}\n\n"
                     "لطفاً URL معتبری ارسال کنید یا /cancel کنید.",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 return ADD_DOCTOR_URL
             
@@ -108,18 +98,20 @@ class DoctorHandlers:
             success, message, doctor = await self.doctor_manager.add_doctor_from_url(url, user_id)
             
             if success:
-                # موفقیت
+                # موفقیت: از پیام استاندارد HTML استفاده می‌کنیم
+                text = MessageFormatter.doctor_extraction_success_message(doctor.name)
+                
                 keyboard = [
                     [InlineKeyboardButton("👨‍⚕️ مشاهده دکتر", callback_data=f"doctor_info_{doctor.id}")],
                     [InlineKeyboardButton("📝 اشتراک در این دکتر", callback_data=f"subscribe_{doctor.id}")],
                     [InlineKeyboardButton("🔍 دریافت نوبت‌های خالی", callback_data=f"check_appointments_{doctor.id}")],
-                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
+                    [InlineKeyboardButton("🔙 منوی اصل��", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await processing_message.edit_text(
-                    message,
-                    parse_mode='Markdown',
+                    text,
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
                 
@@ -134,8 +126,8 @@ class DoctorHandlers:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await processing_message.edit_text(
-                    f"❌ **خطا در اضافه کردن دکتر**\n\n{message}",
-                    parse_mode='Markdown',
+                    f"❌ <b>خطا در اضافه کردن دکتر</b>\n\n{html.escape(str(message))}",
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
             
@@ -144,9 +136,9 @@ class DoctorHandlers:
         except Exception as e:
             logger.error(f"❌ خطا در پردازش URL دکتر: {e}")
             await update.message.reply_text(
-                f"❌ **خطا در پردازش**\n\n`{str(e)}`\n\n"
+                f"❌ <b>خطا در پردازش</b>\n\n<code>{html.escape(str(e))}</code>\n\n"
                 "لطفاً دوباره تلاش کنید یا /cancel کنید.",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return ADD_DOCTOR_URL
     
@@ -156,17 +148,17 @@ class DoctorHandlers:
             if update.callback_query:
                 await update.callback_query.answer()
                 await update.callback_query.edit_message_text(
-                    "❌ **اضافه کردن دکتر لغو شد**\n\n"
+                    "❌ <b>اضافه کردن دکتر لغو شد</b>\n\n"
                     "می‌توانید از منوی اصلی استفاده کنید.",
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")
                     ]])
                 )
             else:
                 await update.message.reply_text(
-                    "❌ **اضافه کردن دکتر لغو شد**",
-                    parse_mode='Markdown'
+                    "❌ <b>اضافه کردن دکتر لغو شد</b>",
+                    parse_mode='HTML'
                 )
             
             return ConversationHandler.END
@@ -210,49 +202,34 @@ class DoctorHandlers:
                     )
                     is_subscribed = sub_result.scalar_one_or_none() is not None
             
-            # ساخت متن اطلاعات
+            # ساخت متن اطلاعات (HTML)
             specialty_emoji = self._get_specialty_emoji(doctor.specialty)
             
-            text = f"""
-{specialty_emoji} **{doctor.name}**
-
-🏥 **تخصص:** {doctor.specialty or 'عمومی'}
-🆔 **شناسه:** `{doctor.doctor_id}`
-
-🏢 **مراکز درمانی ({len(doctor.centers)} مرکز):**
-            """
+            # اطلاعات مرکز
+            if doctor.centers:
+                first_center = doctor.centers[0]
+                center_info = (
+                    f"\n🏥 <b>مطب/کلینیک:</b> {html.escape(first_center.center_name)}\n"
+                    f"📍 <b>آدرس:</b> {html.escape(first_center.center_address or 'آدرس موجود نیست')}\n"
+                    f"📞 <b>تلفن:</b> {html.escape(first_center.center_phone or 'شماره موجود نیست')}"
+                )
+                if len(doctor.centers) > 1:
+                    center_info += f"\n🏢 <b>تعداد مراکز:</b> {len(doctor.centers)} مرکز"
+            else:
+                center_info = "\n🏥 <b>مطب/کلینیک:</b> اطلاعات موجود نیست"
             
-            total_services = 0
-            for i, center in enumerate(doctor.centers, 1):
-                text += f"\n**{i}. {center.center_name}**\n"
-                text += f"   📍 {center.center_address or 'آدرس نامشخص'}\n"
-                text += f"   📞 {center.center_phone or 'تلفن نامشخص'}\n"
-                text += f"   🏷️ {getattr(center, 'center_type', 'نوع نامشخص')}\n"
-                
-                if center.services:
-                    text += f"   🔧 **سرویس‌ها ({len(center.services)}):**\n"
-                    for service in center.services:
-                        price_text = f"{service.price:,} تومان" if service.price > 0 else "رایگان"
-                        text += f"      • {service.service_name} - {price_text}\n"
-                        total_services += 1
-                else:
-                    text += "   ⚠️ سرویسی موجود نیست\n"
-            
-            text += f"""
-
-📊 **آمار:**
-• مراکز فعال: {len([c for c in doctor.centers if c.is_active])}
-• کل سرویس‌ها: {total_services}
-• مشترکین: {getattr(doctor, 'subscription_count', 0)}
-
-🔗 **لینک صفحه:**
-https://www.paziresh24.com/dr/{doctor.slug}/
-
-📅 **تاریخ اضافه شدن:** {doctor.created_at.strftime('%Y/%m/%d') if doctor.created_at else 'نامشخص'}
-
-🔔 **وضعیت اشتراک:**
-{'✅ شما مشترک هستید' if is_subscribed else '❌ شما مشترک نیستید'}
-            """
+            text = (
+                f"{specialty_emoji} <b>{html.escape(doctor.name)}</b>\n\n"
+                f"🩺 <b>تخصص:</b> {html.escape(doctor.specialty or 'عمومی')}" +
+                center_info +
+                "\n\n🔗 <b>لینک صفحه دکتر:</b>\n"
+                f"https://www.paziresh24.com/dr/{html.escape(doctor.slug)}/\n\n"
+                f"📊 <b>وضعیت ثبت‌نام شما:</b>\n"
+                f"{'✅ ثبت‌نام کردی' if is_subscribed else '❌ ثبت‌نام نکردی'}\n\n"
+                "🤖 <b>چطور کار می‌کنه؟</b>\n"
+                "اگه ثبت‌نام کنی، من هر چند دقیقه یه بار نوبت‌های خالی این دکتر رو چک می‌کنم و تا پیدا شد، فوری بهت خبر می‌دم!\n\n"
+                "💡 <b>نکته:</b> نوبت‌ها خیلی سریع تموم میشن، پس آماده باش!"
+            )
             
             # ساخت keyboard
             keyboard = []
@@ -272,7 +249,6 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             ])
             
             # دکمه‌های مدیریت (برای ادمین‌ها)
-            # if await self._is_admin(user_id):
             keyboard.append([
                 InlineKeyboardButton("🔄 به‌روزرسانی اطلاعات", callback_data=f"refresh_doctor_{doctor.id}"),
                 InlineKeyboardButton("❌ حذف دکتر", callback_data=f"delete_doctor_{doctor.id}")
@@ -287,13 +263,13 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             
             await query.edit_message_text(
                 text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
             
         except Exception as e:
             logger.error(f"❌ خطا در نمایش اطلاعات دکتر: {e}")
-            await query.edit_message_text(f"❌ خطا: {str(e)}")
+            await query.edit_message_text(f"❌ خطا: {html.escape(str(e))}")
     
     async def check_doctor_appointments(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """بررسی نوبت‌های خالی دکتر"""
@@ -305,12 +281,12 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             
             # ارسال پیام در حال بررسی
             await query.edit_message_text(
-                "🔍 **در حال بررسی نوبت‌های خالی...**\n\n"
+                "🔍 <b>در حال بررسی نوبت‌های خالی...</b>\n\n"
                 "⏳ اتصال به API پذیرش۲۴\n"
                 "📅 بررسی روزهای موجود\n"
                 "🕐 دریافت نوبت‌های خالی\n\n"
                 "لطفاً صبر کنید...",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
             # دریافت دکتر
@@ -324,19 +300,16 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             appointments = await api_client.get_all_available_appointments(days_ahead=7)
             
             if not appointments:
-                text = f"""
-❌ **نوبت خالی یافت نشد**
-
-👨‍⚕️ **دکتر:** {doctor.name}
-📅 **بررسی شده:** 7 روز آینده
-🕐 **زمان بررسی:** {datetime.now().strftime('%H:%M:%S')}
-
-💡 **توصیه:** 
-• در این دکتر مشترک شوید تا به محض پیدا شدن نوبت اطلاع‌رسانی شوید
-• نوبت‌ها معمولاً سریع تمام می‌شوند
-
-🔄 **برای بررسی مجدد:** دکمه زیر را بزنید
-                """
+                text = (
+                    "❌ <b>نوبت خالی یافت نشد</b>\n\n"
+                    f"👨‍⚕️ <b>دکتر:</b> {html.escape(doctor.name)}\n"
+                    "📅 <b>بررسی شده:</b> 7 روز آینده\n"
+                    f"🕐 <b>زمان بررسی:</b> {datetime.now().strftime('%H:%M:%S')}\n\n"
+                    "💡 <b>توصیه:</b> \n"
+                    "• در این دکتر مشترک شوید تا به محض پیدا شدن نوبت اطلاع‌رسانی شوید\n"
+                    "• نوبت‌ها معمولاً سریع تمام می‌شوند\n\n"
+                    "🔄 <b>برای بررسی مجدد:</b> دکمه زیر را بزنید"
+                )
                 
                 keyboard = [
                     [InlineKeyboardButton("🔄 بررسی مجدد", callback_data=f"check_appointments_{doctor.id}")],
@@ -352,43 +325,37 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                         grouped_appointments[key] = []
                     grouped_appointments[key].append(apt)
                 
-                text = f"""
-✅ **{len(appointments)} نوبت خالی پیدا شد!**
-
-👨‍⚕️ **دکتر:** {doctor.name}
-🕐 **زمان بررسی:** {datetime.now().strftime('%H:%M:%S')}
-
-📋 **نوبت‌های موجود:**
-                """
+                text = (
+                    f"✅ <b>{len(appointments)} نوبت خالی پیدا شد!</b>\n\n"
+                    f"👨‍⚕️ <b>دکتر:</b> {html.escape(doctor.name)}\n"
+                    f"🕐 <b>زمان بررسی:</b> {datetime.now().strftime('%H:%M:%S')}\n\n"
+                    "📋 <b>نوبت‌های موجود:</b>\n"
+                )
                 
                 for key, apts in grouped_appointments.items():
                     center_name, service_name = key.split('_', 1)
-                    text += f"\n🏢 **{center_name}** - {service_name}\n"
+                    text += f"\n🏢 <b>{html.escape(center_name)}</b> - {html.escape(service_name)}\n"
                     
                     # گروه‌بندی بر اساس تاریخ
                     dates = {}
                     for apt in apts:
                         date_str = apt.start_datetime.strftime('%Y/%m/%d')
-                        if date_str not in dates:
-                            dates[date_str] = []
-                        dates[date_str].append(apt)
+                        dates.setdefault(date_str, []).append(apt)
                     
                     for date_str, date_apts in dates.items():
-                        text += f"  📅 {date_str}: "
+                        text += f"  📅 {html.escape(date_str)}: "
                         times = []
                         for apt in date_apts:
                             time_str = apt.start_datetime.strftime('%H:%M')
                             times.append(time_str)
-                        text += ", ".join(times) + "\n"
+                        text += html.escape(", ".join(times)) + "\n"
                 
-                text += f"""
-
-🚀 **برای رزرو:**
-• روی "رزرو سریع" کلیک کنید
-• یا از لینک مستقیم استفاده کنید
-
-⚠️ **توجه:** نوبت‌ها سریع تمام می‌شوند!
-                """
+                text += (
+                    "\n🚀 <b>برای رزرو:</b>\n"
+                    "• روی \"رزرو سریع\" کلیک کنید\n"
+                    "• یا از لینک مستقیم استفاده کنید\n\n"
+                    "⚠️ <b>توجه:</b> نوبت‌ها سریع تمام می‌شوند!"
+                )
                 
                 keyboard = [
                     [InlineKeyboardButton("🚀 رزرو سریع", callback_data=f"quick_reserve_{doctor.id}")],
@@ -401,15 +368,15 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             
             await query.edit_message_text(
                 text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
             
         except Exception as e:
             logger.error(f"❌ خطا در بررسی نوبت‌ها: {e}")
             await query.edit_message_text(
-                f"❌ **خطا در بررسی نوبت‌ها**\n\n`{str(e)}`",
-                parse_mode='Markdown',
+                f"❌ <b>خطا در بررسی نوبت‌ها</b>\n\n<code>{html.escape(str(e))}</code>",
+                parse_mode='HTML',
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 اطلاعات دکتر", callback_data=f"doctor_info_{doctor_id}")
                 ]])
@@ -422,30 +389,31 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             await query.answer()
             
             doctor_id = int(query.data.split("_")[-1])
+
+            # دریافت slug برای لینک صحیح رزرو
+            doctor = await self.doctor_manager.get_doctor_with_details(doctor_id)
+            slug = doctor.slug if doctor else str(doctor_id)
             
-            text = """
-🚧 **قابلیت رزرو سریع**
-
-این قابلیت در حال توسعه است و به زودی اضافه خواهد شد.
-
-🔗 **فعلاً می‌توانید:**
-• از لینک رزرو استفاده کنید
-• به صورت دستی نوبت رزرو کنید
-
-💡 **قابلیت‌های آینده:**
-• رزرو خودکار نوبت‌ها
-• انتخاب نوبت مورد نظر
-• تایید و پرداخت
-            """
+            text = (
+                "🚧 <b>قابلیت رزرو سریع</b>\n\n"
+                "این قابلیت در حال توسعه است و به زودی اضافه خواهد شد.\n\n"
+                "🔗 <b>فعلاً می‌توانید:</b>\n"
+                "• از لینک رزرو استفاده کنید\n"
+                "• به صورت دستی نوبت رزرو کنید\n\n"
+                "💡 <b>قابلیت‌های آینده:</b>\n"
+                "• رزرو خودکار نوبت‌ها\n"
+                "• انتخاب نوبت مورد نظر\n"
+                "• تایید و پرداخت"
+            )
             
             keyboard = [
-                [InlineKeyboardButton("🔗 رزرو دستی", url=f"https://www.paziresh24.com/dr/{doctor_id}/")],
+                [InlineKeyboardButton("🔗 رزرو دستی", url=f"https://www.paziresh24.com/dr/{slug}/")],
                 [InlineKeyboardButton("🔙 بازگشت", callback_data=f"check_appointments_{doctor_id}")]
             ]
             
             await query.edit_message_text(
                 text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             
@@ -478,7 +446,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             if keyword in specialty_lower:
                 return emoji
         
-        return "👨‍���️"
+        return "👨‍⚕️"
     
     async def _is_admin(self, user_id: int) -> bool:
         """بررسی دسترسی ادمین"""

@@ -2,8 +2,10 @@
 New Telegram Bot - معماری جدید و ساده
 """
 import asyncio
+import random
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from typing import Optional
+from telegram.error import RetryAfter, TimedOut, NetworkError
 
 from src.telegram_bot.unified_handlers import UnifiedTelegramHandlers
 from src.utils.logger import get_logger
@@ -110,20 +112,42 @@ class SlotHunterBot:
                 # ایجاد پیام
                 message_text = MessageFormatter.appointment_alert_message(doctor, appointments)
                 
-                # ارسال به همه مشترکین
+                # ارسال به همه مشترکین با مدیریت نرخ و backoff
                 sent_count = 0
-                for subscription in subscriptions:
-                    try:
-                        await self.application.bot.send_message(
-                            chat_id=subscription.user.telegram_id,
-                            text=message_text,
-                            parse_mode='Markdown'
-                        )
-                        sent_count += 1
-                        # کمی delay برای جلوگیری از rate limiting
-                        await asyncio.sleep(0.1)
-                    except Exception as e:
-                        logger.error(f"❌ خطا در ارسال به {subscription.user.telegram_id}: {e}")
+                base_delay = 0.15
+                max_delay = 5.0
+                for idx, subscription in enumerate(subscriptions, 1):
+                    delay = base_delay + random.uniform(0, 0.15)
+                    attempts = 0
+                    while True:
+                        try:
+                            await self.application.bot.send_message(
+                                chat_id=subscription.user.telegram_id,
+                                text=message_text,
+                                parse_mode='HTML'
+                            )
+                            sent_count += 1
+                            await asyncio.sleep(delay)
+                            break
+                        except RetryAfter as e:
+                            wait_time = getattr(e, 'retry_after', 2)
+                            logger.warning(f"⏳ Telegram rate limit (RetryAfter {wait_time}s) for {subscription.user.telegram_id}")
+                            await asyncio.sleep(wait_time + random.uniform(0, 0.5))
+                        except TimedOut:
+                            attempts += 1
+                            backoff = min(base_delay * (2 ** attempts), max_delay)
+                            logger.warning(f"⏱️ TimedOut, retrying in {backoff:.2f}s (attempt {attempts})")
+                            await asyncio.sleep(backoff)
+                            continue
+                        except NetworkError as e:
+                            attempts += 1
+                            backoff = min(base_delay * (2 ** attempts), max_delay)
+                            logger.warning(f"🌐 NetworkError: {e}. retrying in {backoff:.2f}s (attempt {attempts})")
+                            await asyncio.sleep(backoff)
+                            continue
+                        except Exception as e:
+                            logger.error(f"❌ خطا در ارسال به {subscription.user.telegram_id}: {e}")
+                            break
                 
                 logger.info(f"📤 پیام به {sent_count}/{len(subscriptions)} مشترک ارسال شد")
                 

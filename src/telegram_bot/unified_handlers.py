@@ -80,7 +80,7 @@ class UnifiedTelegramHandlers:
             # ارسال پیام
             await update.message.reply_text(
                 welcome_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
             
@@ -109,7 +109,7 @@ class UnifiedTelegramHandlers:
         
         await update.message.reply_text(
             "📱 **منوی سریع فعال شد!**\n\nاز دکمه‌های پایین استفاده کن.",
-            parse_mode='Markdown',
+            parse_mode='HTML',
             reply_markup=reply_markup
         )
     
@@ -125,7 +125,7 @@ class UnifiedTelegramHandlers:
             
             await update.message.reply_text(
                 help_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
             
@@ -160,7 +160,7 @@ class UnifiedTelegramHandlers:
                     "• از دکمه‌های پایین استفاده کن\n"
                     "• یا لینک دکتر رو بفرست تا اضافه کنم\n\n"
                     "🆘 **کمک می‌خوای؟** /help بزن",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 
         except Exception as e:
@@ -198,7 +198,7 @@ class UnifiedTelegramHandlers:
                 await query.edit_message_text(
                     "❌ **دستور نامشخص!**\n\n"
                     "😅 یه چیزی اشتباه شد. از منوی اصلی استفاده کن.",
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")
                     ]])
@@ -209,7 +209,7 @@ class UnifiedTelegramHandlers:
             try:
                 await query.edit_message_text(
                     MessageFormatter.error_message(f"مشکلی پیش اومد: {str(e)}"),
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")
                     ]])
@@ -238,7 +238,7 @@ class UnifiedTelegramHandlers:
 📋 **مثال:**
 `https://www.paziresh24.com/dr/دکتر-احمد-محمدی-0/`
 
-💡 **یا ��ز دکمه زیر استفاده کن:**
+💡 **یا از دکمه زیر استفاده کن:**
                     """
                     
                     keyboard = [
@@ -248,7 +248,7 @@ class UnifiedTelegramHandlers:
                     
                     await message.reply_text(
                         text,
-                        parse_mode='Markdown',
+                        parse_mode='HTML',
                         reply_markup=InlineKeyboardMarkup(keyboard)
                     )
                     return
@@ -283,7 +283,7 @@ class UnifiedTelegramHandlers:
                 
                 await message.reply_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
         except Exception as e:
@@ -370,7 +370,7 @@ class UnifiedTelegramHandlers:
                 
                 await message.reply_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
         except Exception as e:
@@ -388,7 +388,7 @@ class UnifiedTelegramHandlers:
         await self._show_subscriptions(query.message, user_id)
     
     async def _callback_doctor_info(self, query, data, user_id):
-        """callback اطلاعات دکتر بهبود یافته"""
+        """callback اطلاعات دکتر بهب��د یافته"""
         try:
             doctor_id = int(data.split("_")[2])
             
@@ -473,7 +473,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 await query.edit_message_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
                 
@@ -520,7 +520,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                     if existing_sub.is_active:
                         await query.edit_message_text(
                             MessageFormatter.error_message(f"قبلاً توی {doctor.name} ثبت‌نام کردی!"),
-                            parse_mode='Markdown'
+                            parse_mode='HTML'
                         )
                         return
                     else:
@@ -544,7 +544,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 await query.edit_message_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
                 
@@ -593,7 +593,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 if not subscription:
                     await query.edit_message_text(
                         MessageFormatter.error_message(f"توی {doctor.name} ثبت‌نام نکردی که!"),
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
                     return
                 
@@ -611,7 +611,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 await query.edit_message_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
                 
@@ -632,7 +632,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         
         await query.edit_message_text(
             text,
-            parse_mode='Markdown',
+            parse_mode='HTML',
             reply_markup=reply_markup
         )
     
@@ -660,7 +660,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         
         await query.edit_message_text(
             text,
-            parse_mode='Markdown',
+            parse_mode='HTML',
             reply_markup=reply_markup
         )
     
@@ -727,7 +727,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 "🔍 اطلاعات مهم رو استخراج می‌کنم\n"
                 "💾 توی سیستم ذخیره می‌کنم\n\n"
                 "⏰ چند ثانیه طول می‌کشه...",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
             # اعتبارسنجی URL
@@ -735,7 +735,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             if not is_valid:
                 await processing_message.edit_text(
                     MessageFormatter.error_message(f"لینک درست نیست!\n\n{validation_message}"),
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 return
             
@@ -748,14 +748,14 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 keyboard = [
                     [InlineKeyboardButton("👨‍⚕️ مشاهده دکتر", callback_data=f"doctor_info_{doctor.id}")],
-                    [InlineKeyboardButton("📝 ثبت‌نام در این دکتر", callback_data=f"subscribe_{doctor.id}")],
+                    [InlineKeyboardButton("📝 ثبت‌نام در ا��ن دکتر", callback_data=f"subscribe_{doctor.id}")],
                     [InlineKeyboardButton("🔙 منوی اصلی", callback_data="back_to_main")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await processing_message.edit_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
                 
@@ -773,7 +773,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
                 
                 await processing_message.edit_text(
                     text,
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
             
@@ -781,7 +781,7 @@ https://www.paziresh24.com/dr/{doctor.slug}/
             logger.error(f"❌ خطا در پردازش URL دکتر: {e}")
             await message.reply_text(
                 MessageFormatter.error_message(f"مشکلی پیش اومد: {str(e)}"),
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
     
     async def _send_error_message(self, message, error_text):
@@ -794,6 +794,6 @@ https://www.paziresh24.com/dr/{doctor.slug}/
         
         await message.reply_text(
             error_message,
-            parse_mode='Markdown',
+            parse_mode='HTML',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
